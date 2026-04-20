@@ -5,7 +5,7 @@ def call(body) {
 
     node {
         def configString = libraryResource "config.yml"
-        config = readYaml text: configString
+        def config = readYaml text: configString
         echo "Current version: ${config.styxcd_jenkins.version}"
     }
 
@@ -13,5 +13,5 @@ def call(body) {
     body.delegate = pipelineParams
     body()
 
-    echo "IN KBPM with ${pipelineParams}"
+    echo "IN scdj with ${pipelineParams}"
 }
