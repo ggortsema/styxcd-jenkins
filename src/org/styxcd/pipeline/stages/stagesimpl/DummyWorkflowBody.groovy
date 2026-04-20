@@ -1,4 +1,4 @@
-package org.mastercard.pipeline.stages.stagesimpl
+package org.styxcd.pipeline.stages.stagesimpl
 
 class DummyWorkflowBody implements Serializable {
     /**
