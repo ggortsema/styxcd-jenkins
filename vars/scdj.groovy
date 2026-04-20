@@ -21,6 +21,6 @@ def call(body) {
         echo yml_string
         yml = readYaml text: yml_string
 
-        echo "current workflow is: " + yml.worflow
+        echo "current workflow is: " + yml.workflow
     }
 }
