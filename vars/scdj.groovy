@@ -46,4 +46,46 @@ def call(body) {
     echo "running this workflow: ${ralfJson}"
     def tryMap = [:]
     def finalMap = [:]
+
+    //turn the JSON into maps and pull some pertinant information from the strings. We break things up into things
+    //that can run normally and things that need to run in a finally block
+    ralfJson.each { key, value ->
+        def index = key.indexOf('@')
+        def endString
+        if (index != -1) {
+            endString = key.substring(index)
+        }
+        if (endString && endString.contains('final')) {
+            finalMap[key] = value
+        } else {
+            tryMap[key] = value
+        }
+    }
+
+    //run the stages in order from the maps we created and then run the final stages in a finally block
+    //for things like cleanup etc.
+
+    def stageWrapper = new org.styxcd.pipeline.stages.StageWrapper(this)
+
+    stageWrapper.initializeBuildInformation(featureFlags.getEnabledFlags(), keyMaps)
+
+    try {
+        tryMap.each { key, value ->
+            def index = key.indexOf('@')
+
+            if (index != -1) {
+                key = key.substring(0, index)
+            }
+            stageWrapper.run(value, keyMaps, getStage, key)
+        }
+    } finally {
+        finalMap.each { key, value ->
+            def index = key.indexOf('@')
+
+            if (index != -1) {
+                key = key.substring(0, index)
+            }
+            stageWrapper.run(value, keyMaps, getStage, key)
+        }
+    }
 }
