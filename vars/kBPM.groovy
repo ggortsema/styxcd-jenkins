@@ -3,4 +3,11 @@ def call(body) {
     def yml
 
     echo "Reading configuration"
+
+
+
+    node {
+        echo "Reading configuration 2"
+
+    }
 }
