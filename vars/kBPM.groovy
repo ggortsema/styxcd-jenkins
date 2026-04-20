@@ -4,7 +4,7 @@ def call(body) {
 
 
     node {
-        def configString = libraryResource "/config.yml"
+        def configString = libraryResource "config.yml"
         config = readYaml text: configString
         echo "Current version: ${config.styxcd_jenkins.version}"
     }
