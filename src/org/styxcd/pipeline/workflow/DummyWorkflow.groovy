@@ -14,7 +14,7 @@ def createJsonStageList(yml, getStage) {
 }
 
 private Map preprocessYml(yml) {
-    validateMap = [:]
+    def validateMap = [:]
 
     return validateMap
 }

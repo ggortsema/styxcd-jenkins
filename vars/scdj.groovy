@@ -44,6 +44,6 @@ def call(body) {
     def getStage = new org.styxcd.pipeline.stages.StageMap().getMap(this, featureFlags)
     ralfJson = workflow.createJsonStageList(yml, getStage)
     echo "running this workflow: ${ralfJson}"
-    tryMap = [:]
-    finalMap = [:]
+    def tryMap = [:]
+    def finalMap = [:]
 }
