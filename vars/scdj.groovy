@@ -1,11 +1,15 @@
 def call(body) {
     def pipelineParams = [:]
     def yml
+    def getWorkflow = new org.styxcd.pipeline.workflow.WorkflowMap().getMap()
+    def ralfJson
+    def keyMaps = [:]
+    def config
 
 
     node {
         def configString = libraryResource "config.yml"
-        def config = readYaml text: configString
+        config = readYaml text: configString
         echo "Current version: ${config.styxcd_jenkins.version}"
     }
 
@@ -21,6 +25,25 @@ def call(body) {
         echo yml_string
         yml = readYaml text: yml_string
 
-        echo "current workflow is: " + yml.workflow
     }
+
+    echo "Declarative Specification:\n\n${yml_string}"
+
+    def featureFlags = new org.styxcd.pipeline.FeatureFlags(this, env.STYXCD_FEATURE_FLAGS, yml.feature_flags)
+    featureFlags.prettyPrint()
+
+    def workflowString = yml?.workflow ?: 'pcf_workflow'
+    def workflow = getWorkflow[workflowString]
+    if (!workflow) {
+        error("there is no workflow defined for ${yml.workflow}.")
+    }
+    echo "workflow is ${yml.workflow}"
+
+    //Here we call the workflow or at some point an external source to get the json list of stages and
+    //parameters
+    def getStage = new org.styxcd.pipeline.stages.StageMap().getMap(this, featureFlags)
+    ralfJson = workflow.createJsonStageList(yml, getStage)
+    echo "running this workflow: ${ralfJson}"
+    tryMap = [:]
+    finalMap = [:]
 }
