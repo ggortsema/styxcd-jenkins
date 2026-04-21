@@ -18,7 +18,7 @@ class DummyWorkflowBody implements Serializable {
     public Map getParams(yml, paramMap) {
         def params = [:]
         params['stagename'] = 'body'
-        params['label'] = 'runner_1 || runner_2'
+        params['label'] = ''
         params['VALIDATE_MAP'] = paramMap['VALIDATE_MAP']
         params['YML'] = yml
         return params
