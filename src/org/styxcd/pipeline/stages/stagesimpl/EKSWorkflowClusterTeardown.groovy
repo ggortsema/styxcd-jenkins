@@ -1,6 +1,6 @@
 package org.styxcd.pipeline.stages.stagesimpl
 
-class EKSWorkflowBody implements Serializable {
+class EKSWorkflowClusterTeardown implements Serializable {
     /**
      * a reference to the pipeline that allows you to run pipeline steps in your shared libary
      */
@@ -11,7 +11,7 @@ class EKSWorkflowBody implements Serializable {
      *
      * @param steps a reference to the pipeline that allows you to run pipeline steps in your shared libary
      */
-    public EKSWorkflowBody(steps, featureFlags) {
+    public EKSWorkflowClusterTeardown(steps, featureFlags) {
         this.steps = steps
     }
 
@@ -34,7 +34,7 @@ class EKSWorkflowBody implements Serializable {
         steps.echo "here is yml"
         steps.echo "${yml}"
 
-        steps.echo "in eks body stage"
+        steps.echo "in eks cluster teardown stage"
 
         //preparing to teardown eks cluster
         steps.withCredentials([
