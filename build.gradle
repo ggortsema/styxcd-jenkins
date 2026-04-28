@@ -1,0 +1,55 @@
+// build.gradle
+
+plugins {
+    id 'groovy'
+}
+
+group = 'org.styxcd'
+version = '0.1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+configurations.all {
+    resolutionStrategy {
+        force 'org.apache.groovy:groovy:4.0.29'
+        force 'org.apache.groovy:groovy-xml:4.0.29'
+        force 'org.apache.groovy:groovy-json:4.0.29'
+    }
+}
+
+sourceSets {
+    main {
+        groovy {
+            srcDirs = ['src', 'vars']
+        }
+        resources {
+            srcDirs = ['resources']
+        }
+    }
+
+    test {
+        groovy {
+            srcDirs = ['test']
+            exclude 'resources/**'
+        }
+        resources {
+            srcDirs = ['test/resources']
+        }
+    }
+}
+
+dependencies {
+    implementation localGroovy()
+
+    testImplementation platform('org.spockframework:spock-bom:2.4-M6-groovy-4.0')
+    testImplementation 'org.spockframework:spock-core'
+
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'com.athaydes:spock-reports:2.5.1-groovy-4.0'
+}
+
+test {
+    useJUnitPlatform()
+}
