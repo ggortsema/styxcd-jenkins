@@ -26,17 +26,29 @@ class EKSWorkflowClusterBuild implements Serializable {
 
     public void runStage(script, params, keyMaps) {
 
-      def stageMapName = keyMaps["STAGE_MAP_NAME"]
-      def stageSpecificMap = keyMaps[stageMapName]
-      stageSpecificMap['TEST_VALUE'] = "IT WORKED"
+        def stageMapName = keyMaps["STAGE_MAP_NAME"]
+        def stageSpecificMap = keyMaps[stageMapName]
+        stageSpecificMap['TEST_VALUE'] = "IT WORKED"
 
-      def yml = params['YML']
-      steps.echo "here is yml"
-      steps.echo "${yml}"
+        def yml = params['YML']
+        steps.echo "here is yml"
+        steps.echo "${yml}"
 
-    
-      //your stage work goes here
-      steps.echo "in eks worfklow cluster build stage"
+
+        //building an eks cluster
+        steps.echo "in eks worfklow cluster build stage"
+
+        steps.withCredentials([
+                steps.string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                steps.string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+        ]) {
+            def identity = steps.sh(
+                    script: 'aws sts get-caller-identity',
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "AWS Identity: ${identity}"
+        }
 
     }
 }
