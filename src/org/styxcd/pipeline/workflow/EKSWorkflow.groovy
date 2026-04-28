@@ -8,9 +8,9 @@ def createJsonStageList(yml, getStage) {
     def paramMap = [:]
     paramMap['VALIDATE_MAP'] = preprocessYml(yml)
 
-    jsonOutput['DummyWorkflowInitialize'] = getStage['DummyWorkflowInitialize'].getParams(yml, paramMap)
-    jsonOutput['DummyWorkflowBody'] = getStage['DummyWorkflowBody'].getParams(yml, paramMap)
-    jsonOutput['DummyWorkflowCleanup@final'] = getStage['DummyWorkflowCleanup'].getParams(yml, paramMap)
+    jsonOutput['EKSWorkflowInitialize'] = getStage['EKSWorkflowInitialize'].getParams(yml, paramMap)
+    jsonOutput['EKSWorkflowBody'] = getStage['EKSWorkflowBody'].getParams(yml, paramMap)
+    jsonOutput['EKSWorkflowCleanup@final'] = getStage['EKSWorkflowCleanup'].getParams(yml, paramMap)
 
     return jsonOutput
 }
