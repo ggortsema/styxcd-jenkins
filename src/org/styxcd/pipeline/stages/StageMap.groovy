@@ -10,6 +10,8 @@ def getMap(steps, featureFlags) {
     map["EKSWorkflowInitialize"] = new org.styxcd.pipeline.stages.stagesimpl.EKSWorkflowInitialize(steps, featureFlags)
     map["EKSWorkflowCleanup"] = new org.styxcd.pipeline.stages.stagesimpl.EKSWorkflowCleanup(steps, featureFlags)
     map["EKSWorkflowClusterBuild"] = new org.styxcd.pipeline.stages.stagesimpl.EKSWorkflowClusterBuild(steps, featureFlags)
+    map["GradleBuild"] = new org.styxcd.pipeline.stages.stagesimpl.GradleBuild(steps, featureFlags)
+
 
 
 
