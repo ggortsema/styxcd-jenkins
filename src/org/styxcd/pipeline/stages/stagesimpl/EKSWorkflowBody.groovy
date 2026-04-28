@@ -26,17 +26,25 @@ class EKSWorkflowBody implements Serializable {
 
     public void runStage(script, params, keyMaps) {
 
-      def stageMapName = keyMaps["STAGE_MAP_NAME"]
-      def stageSpecificMap = keyMaps[stageMapName]
-      stageSpecificMap['TEST_VALUE'] = "IT WORKED"
+        def stageMapName = keyMaps["STAGE_MAP_NAME"]
+        def stageSpecificMap = keyMaps[stageMapName]
+        stageSpecificMap['TEST_VALUE'] = "IT WORKED"
 
-      def yml = params['YML']
-      steps.echo "here is yml"
-      steps.echo "${yml}"
+        def yml = params['YML']
+        steps.echo "here is yml"
+        steps.echo "${yml}"
 
-    
-      //your stage work goes here
-      steps.echo "in eks body stage"
+
+        //your stage work goes here
+        steps.echo "in eks body stage"
+
+        def identity = steps.sh(
+                script: 'aws sts get-caller-identity',
+                returnStdout: true
+        ).trim()
+
+        steps.echo "AWS Identity: ${identity}"
+
 
     }
 }
