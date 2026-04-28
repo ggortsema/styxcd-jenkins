@@ -38,12 +38,17 @@ class EKSWorkflowBody implements Serializable {
         //your stage work goes here
         steps.echo "in eks body stage"
 
-        def identity = steps.sh(
-                script: 'aws sts get-caller-identity',
-                returnStdout: true
-        ).trim()
+        steps.withCredentials([
+                steps.string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                steps.string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+        ]) {
+            def identity = steps.sh(
+                    script: 'aws sts get-caller-identity',
+                    returnStdout: true
+            ).trim()
 
-        steps.echo "AWS Identity: ${identity}"
+            steps.echo "AWS Identity: ${identity}"
+        }
 
 
     }
