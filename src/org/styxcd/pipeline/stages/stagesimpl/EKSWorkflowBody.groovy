@@ -71,11 +71,25 @@ class EKSWorkflowBody implements Serializable {
                 ).trim()
 
                 steps.echo "Kubernetes nodes:\n${nodes}"
-                
+
             } else {
                 steps.echo "Cluster does not exist. Nothing to teardown."
             }
 
+        }
+
+        steps.dir('johnny-johnny-deployment') {
+            steps.git(
+                    branch: 'main',
+                    url: 'https://github.com/ggortsema/johnny-johnny-deployment.git'
+            )
+
+            def files = steps.sh(
+                    script: 'ls -la eks/dev',
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "Deployment files:\n${files}"
         }
 
 
