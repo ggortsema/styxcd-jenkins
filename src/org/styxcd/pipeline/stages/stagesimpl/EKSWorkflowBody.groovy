@@ -96,29 +96,54 @@ class EKSWorkflowBody implements Serializable {
                 steps.string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
                 steps.string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
         ]) {
-            def deleteIngressStatus = steps.sh(
-                    script: 'kubectl delete -f johnny-johnny-deployment/eks/dev/ingress.yml --ignore-not-found=true',
+            def clusterStatusBeforeDelete = steps.sh(
+                    script: 'eksctl get cluster --region us-east-1 --name johnny-johnny-dev',
                     returnStatus: true
             )
-            steps.echo "Delete ingress status: ${deleteIngressStatus}"
+            steps.echo "Cluster status before delete: ${clusterStatusBeforeDelete}"
 
-            def deleteFrontendStatus = steps.sh(
-                    script: 'kubectl delete -f johnny-johnny-deployment/eks/dev/frontend.yml --ignore-not-found=true',
-                    returnStatus: true
-            )
-            steps.echo "Delete frontend status: ${deleteFrontendStatus}"
+            if (clusterStatusBeforeDelete == 0) {
+                steps.echo "Cluster exists. Updating kubeconfig before deleting resources."
 
-            def deleteBackendStatus = steps.sh(
-                    script: 'kubectl delete -f johnny-johnny-deployment/eks/dev/backend.yml --ignore-not-found=true',
-                    returnStatus: true
-            )
-            steps.echo "Delete backend status: ${deleteBackendStatus}"
+                def updateKubeconfigOutput = steps.sh(
+                        script: 'aws eks update-kubeconfig --region us-east-1 --name johnny-johnny-dev',
+                        returnStdout: true
+                ).trim()
+                steps.echo "Update kubeconfig output: ${updateKubeconfigOutput}"
 
-            def deleteClusterStatus = steps.sh(
-                    script: 'eksctl delete cluster --region us-east-1 --name johnny-johnny-dev',
+                def deleteIngressStatus = steps.sh(
+                        script: 'kubectl delete -f johnny-johnny-deployment/eks/dev/ingress.yml --ignore-not-found=true',
+                        returnStatus: true
+                )
+                steps.echo "Delete ingress status: ${deleteIngressStatus}"
+
+                def deleteFrontendStatus = steps.sh(
+                        script: 'kubectl delete -f johnny-johnny-deployment/eks/dev/frontend.yml --ignore-not-found=true',
+                        returnStatus: true
+                )
+                steps.echo "Delete frontend status: ${deleteFrontendStatus}"
+
+                def deleteBackendStatus = steps.sh(
+                        script: 'kubectl delete -f johnny-johnny-deployment/eks/dev/backend.yml --ignore-not-found=true',
+                        returnStatus: true
+                )
+                steps.echo "Delete backend status: ${deleteBackendStatus}"
+
+                def deleteClusterStatus = steps.sh(
+                        script: 'eksctl delete cluster --region us-east-1 --name johnny-johnny-dev',
+                        returnStatus: true
+                )
+                steps.echo "Delete cluster status: ${deleteClusterStatus}"
+            } else {
+                steps.echo "Cluster does not exist. Skipping manifest and cluster delete."
+            }
+
+            def clusterStatusAfterDelete = steps.sh(
+                    script: 'eksctl get cluster --region us-east-1 --name johnny-johnny-dev',
                     returnStatus: true
             )
-            steps.echo "Delete cluster status: ${deleteClusterStatus}"
+
+            steps.echo "Cluster status after delete: ${clusterStatusAfterDelete}"
         }
 
 
