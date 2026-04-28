@@ -92,12 +92,17 @@ class EKSWorkflowBody implements Serializable {
             steps.echo "Deployment files:\n${files}"
         }
 
-        def deleteIngressStatus = steps.sh(
-                script: 'kubectl delete -f johnny-johnny-deployment/eks/dev/ingress.yml --ignore-not-found=true',
-                returnStatus: true
-        )
+        steps.withCredentials([
+                steps.string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                steps.string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+        ]) {
+            def deleteIngressStatus = steps.sh(
+                    script: 'kubectl delete -f johnny-johnny-deployment/eks/dev/ingress.yml --ignore-not-found=true',
+                    returnStatus: true
+            )
 
-        steps.echo "Delete ingress status: ${deleteIngressStatus}"
+            steps.echo "Delete ingress status: ${deleteIngressStatus}"
+        }
 
 
 
