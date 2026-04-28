@@ -92,6 +92,15 @@ class EKSWorkflowBody implements Serializable {
             steps.echo "Deployment files:\n${files}"
         }
 
+        def deleteIngressStatus = steps.sh(
+                script: 'kubectl delete -f johnny-johnny-deployment/eks/dev/ingress.yml --ignore-not-found=true',
+                returnStatus: true
+        )
+
+        steps.echo "Delete ingress status: ${deleteIngressStatus}"
+
+
+
 
     }
 }
