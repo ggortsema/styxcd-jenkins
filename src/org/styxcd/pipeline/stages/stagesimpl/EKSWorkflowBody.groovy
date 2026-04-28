@@ -34,10 +34,9 @@ class EKSWorkflowBody implements Serializable {
         steps.echo "here is yml"
         steps.echo "${yml}"
 
-
-        //your stage work goes here
         steps.echo "in eks body stage"
 
+        //preparing to teardown eks cluster
         steps.withCredentials([
                 steps.string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
                 steps.string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
@@ -48,6 +47,14 @@ class EKSWorkflowBody implements Serializable {
             ).trim()
 
             steps.echo "AWS Identity: ${identity}"
+
+            def clusterStatus = steps.sh(
+                    script: 'eksctl get cluster --region us-east-1 --name johnny-johnny-dev',
+                    returnStatus: true
+            )
+
+            steps.echo "Cluster status command returned: ${clusterStatus}"
+
         }
 
 
