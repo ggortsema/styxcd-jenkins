@@ -55,6 +55,19 @@ class EKSWorkflowBody implements Serializable {
 
             steps.echo "Cluster status command returned: ${clusterStatus}"
 
+            if (clusterStatus == 0) {
+                steps.echo "Cluster exists. Updating kubeconfig."
+
+                def kubeConfigOutput = steps.sh(
+                        script: 'aws eks update-kubeconfig --region us-east-1 --name johnny-johnny-dev',
+                        returnStdout: true
+                ).trim()
+
+                steps.echo "Kubeconfig output: ${kubeConfigOutput}"
+            } else {
+                steps.echo "Cluster does not exist. Nothing to teardown."
+            }
+
         }
 
 
