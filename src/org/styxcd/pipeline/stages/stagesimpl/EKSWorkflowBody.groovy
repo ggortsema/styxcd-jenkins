@@ -64,6 +64,14 @@ class EKSWorkflowBody implements Serializable {
                 ).trim()
 
                 steps.echo "Kubeconfig output: ${kubeConfigOutput}"
+
+                def nodes = steps.sh(
+                        script: 'kubectl get nodes',
+                        returnStdout: true
+                ).trim()
+
+                steps.echo "Kubernetes nodes:\n${nodes}"
+                
             } else {
                 steps.echo "Cluster does not exist. Nothing to teardown."
             }
