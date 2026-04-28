@@ -100,8 +100,25 @@ class EKSWorkflowBody implements Serializable {
                     script: 'kubectl delete -f johnny-johnny-deployment/eks/dev/ingress.yml --ignore-not-found=true',
                     returnStatus: true
             )
-
             steps.echo "Delete ingress status: ${deleteIngressStatus}"
+
+            def deleteFrontendStatus = steps.sh(
+                    script: 'kubectl delete -f johnny-johnny-deployment/eks/dev/frontend.yml --ignore-not-found=true',
+                    returnStatus: true
+            )
+            steps.echo "Delete frontend status: ${deleteFrontendStatus}"
+
+            def deleteBackendStatus = steps.sh(
+                    script: 'kubectl delete -f johnny-johnny-deployment/eks/dev/backend.yml --ignore-not-found=true',
+                    returnStatus: true
+            )
+            steps.echo "Delete backend status: ${deleteBackendStatus}"
+
+            def deleteClusterStatus = steps.sh(
+                    script: 'eksctl delete cluster --region us-east-1 --name johnny-johnny-dev',
+                    returnStatus: true
+            )
+            steps.echo "Delete cluster status: ${deleteClusterStatus}"
         }
 
 
