@@ -53,15 +53,39 @@ class EKSWorkflowClusterBuild implements Serializable {
             ).trim()
             steps.echo "AWS Identity: ${identity}"
 
-            def clusterStatusBeforeBuild = steps.sh(
-                    script: "eksctl get cluster --region ${awsRegion} --name ${clusterName}",
-                    returnStatus: true
-            )
-            steps.echo "Cluster status before build: ${clusterStatusBeforeBuild}"
+            def clusterStatusText = steps.sh(
+                    script: "aws eks describe-cluster --region ${awsRegion} --name ${clusterName} --query cluster.status --output text 2>/dev/null || echo NOT_FOUND",
+                    returnStdout: true
+            ).trim()
+            steps.echo "Cluster AWS status before build: ${clusterStatusText}"
 
-            if (clusterStatusBeforeBuild == 0) {
-                steps.echo "Cluster already exists. Skipping cluster creation."
-            } else {
+            if (clusterStatusText == 'ACTIVE') {
+                steps.echo "Cluster already exists and is ACTIVE. Skipping cluster creation."
+            } else if (clusterStatusText == 'DELETING') {
+                steps.echo "Cluster is still DELETING. Waiting for deletion to complete."
+
+                def waitDeleteStatus = steps.sh(
+                        script: "aws eks wait cluster-deleted --region ${awsRegion} --name ${clusterName}",
+                        returnStatus: true
+                )
+                steps.echo "Wait for cluster deleted status: ${waitDeleteStatus}"
+
+                if (waitDeleteStatus != 0) {
+                    steps.error "Cluster was still deleting and did not finish cleanly with status: ${waitDeleteStatus}"
+                }
+
+                steps.echo "Cluster deletion completed. Creating EKS cluster."
+
+                def createClusterStatus = steps.sh(
+                        script: "eksctl create cluster --name ${clusterName} --region ${awsRegion} --nodes ${nodeCount} --node-type ${nodeType} --managed",
+                        returnStatus: true
+                )
+                steps.echo "Create cluster status: ${createClusterStatus}"
+
+                if (createClusterStatus != 0) {
+                    steps.error "EKS cluster creation failed with status: ${createClusterStatus}"
+                }
+            } else if (clusterStatusText == 'NOT_FOUND') {
                 steps.echo "Cluster does not exist. Creating EKS cluster."
 
                 def createClusterStatus = steps.sh(
@@ -73,6 +97,30 @@ class EKSWorkflowClusterBuild implements Serializable {
                 if (createClusterStatus != 0) {
                     steps.error "EKS cluster creation failed with status: ${createClusterStatus}"
                 }
+            } else if (clusterStatusText == 'CREATING') {
+                steps.echo "Cluster is already CREATING. Waiting until it becomes ACTIVE."
+
+                def waitActiveStatus = steps.sh(
+                        script: "aws eks wait cluster-active --region ${awsRegion} --name ${clusterName}",
+                        returnStatus: true
+                )
+                steps.echo "Wait for cluster active status: ${waitActiveStatus}"
+
+                if (waitActiveStatus != 0) {
+                    steps.error "Cluster did not become ACTIVE cleanly with status: ${waitActiveStatus}"
+                }
+            } else {
+                steps.error "Cluster exists but is not usable. Current AWS status: ${clusterStatusText}"
+            }
+
+            def clusterActiveStatus = steps.sh(
+                    script: "aws eks wait cluster-active --region ${awsRegion} --name ${clusterName}",
+                    returnStatus: true
+            )
+            steps.echo "Final wait for cluster active status: ${clusterActiveStatus}"
+
+            if (clusterActiveStatus != 0) {
+                steps.error "Cluster is not ACTIVE after create/skip/wait flow. Status: ${clusterActiveStatus}"
             }
 
             steps.echo "Updating kubeconfig."
@@ -90,10 +138,10 @@ class EKSWorkflowClusterBuild implements Serializable {
             steps.echo "Kubernetes nodes:\n${nodes}"
 
             def clusterStatusAfterBuild = steps.sh(
-                    script: "eksctl get cluster --region ${awsRegion} --name ${clusterName}",
-                    returnStatus: true
-            )
-            steps.echo "Cluster status after build: ${clusterStatusAfterBuild}"
+                    script: "aws eks describe-cluster --region ${awsRegion} --name ${clusterName} --query cluster.status --output text",
+                    returnStdout: true
+            ).trim()
+            steps.echo "Cluster AWS status after build: ${clusterStatusAfterBuild}"
         }
 
     }
