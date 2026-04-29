@@ -1,0 +1,41 @@
+workflow: 'cloud_workflow'
+release:
+  name: johnny-platform-release
+  version: 1.0.0
+
+  applications:
+    spring:
+      - name: johnny-johnny-backend
+        repo: https://github.com/ggortsema/johnny-johnny.git
+        branch: main
+        checkout_dir: johnny-johnny
+        aws_region: us-east-1
+        aws_account_id: "359546647832"
+        ecr_namespace: johnny-johnny
+        ecr_repo: johnny-johnny/johnny-johnny-backend
+        ecr_registry: 359546647832.dkr.ecr.us-east-1.amazonaws.com
+        image_tag: latest
+        image: 359546647832.dkr.ecr.us-east-1.amazonaws.com/johnny-johnny/johnny-johnny-backend:latest
+        java_home: /usr/lib/jvm/java-21-amazon-corretto
+        maven_command: mvn clean package -DskipTests
+        docker_context: chat-api
+        dockerfile: Dockerfile
+        artifact_target: ecr
+        build_tool: gradle
+
+    node:
+      - name: johnny-johnny-ui
+        repo: https://github.com/ggortsema/johnny-johnny-ui.git
+        branch: main
+        checkout_dir: johnny-johnny-ui
+        aws_region: us-east-1
+        aws_account_id: "359546647832"
+        ecr_namespace: johnny-johnny
+        ecr_repo: johnny-johnny/johnny-johnny-ui
+        ecr_registry: 359546647832.dkr.ecr.us-east-1.amazonaws.com
+        image_tag: latest
+        image: 359546647832.dkr.ecr.us-east-1.amazonaws.com/johnny-johnny/johnny-johnny-ui:latest
+        frontend_api_url: http://api.johnny-johnny.mycroftai.org
+        docker_context: .
+        dockerfile: Dockerfile
+        artifact_target: ecr

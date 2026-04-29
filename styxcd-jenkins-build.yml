@@ -1,0 +1,11 @@
+workflow: 'cloud_workflow'
+release:
+  name: styxcd-jenkins-build
+  version: 1.0.0
+
+  applications:
+    spring:
+      - name: styxcd-jenkins
+        repo: https://github.com/ggortsema/styxcd-jenkins.git
+        branch: main
+        build_tool: gradle

@@ -1,0 +1,90 @@
+release:
+  name: johnny-platform-release
+  version: 1.0.0
+
+  applications:
+    spring:
+      - name: first-app
+        repo: someplace
+        branch: main
+        version: 1.0.0
+        build:
+          type: maven-docker
+          project_path: .
+          dockerfile: Dockerfile
+          artifact_target: ecr
+
+      - name: second-app
+        repo: someplace
+        branch: main
+        build:
+          type: maven-docker
+          project_path: .
+          dockerfile: Dockerfile
+          artifact_target: ecr
+
+    node:
+      - name: first-node-app
+        repo: someplace
+        branch: main
+        version: 1.0.0
+        build:
+          type: docker
+          project_path: .
+          dockerfile: Dockerfile
+          artifact_target: ecr
+
+  test_suites:
+    integration:
+      repo: someplace
+      branch: main
+
+    performance:
+      repo: someplace
+      branch: main
+
+    penetration:
+      repo: someplace
+      branch: main
+
+  environments:
+    dev:
+      - name: dev-a
+        platform: eks
+        location: us-east-1
+        deployment_repo: someplace
+        branch: main
+
+      - name: dev-b
+        platform: eks
+        location: us-east-2
+        deployment_repo: someplace
+        branch: main
+
+    qa:
+      - name: qa-a
+        platform: eks
+        location: us-east-1
+        deployment_repo: someplace
+        branch: main
+        test_overrides:
+          skip:
+            - performance
+
+    stage:
+      - name: stage-a
+        platform: eks
+        location: us-east-1
+        deployment_repo: someplace
+        branch: main
+
+    prod:
+      - name: prod-a
+        platform: eks
+        location: us-east-1
+        deployment_repo: someplace
+        branch: main
+        test_overrides:
+          skip:
+            - performance
+            - penetration

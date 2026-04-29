@@ -17,7 +17,8 @@ class GradleBuild implements Serializable {
 
     public Map getParams(yml, paramMap) {
         def params = [:]
-        params['stagename'] = 'gradle build and test'
+        params['appHostName'] = paramMap['APPHOST_NAME']
+        params['stagename'] = "Build Gradle App - ${paramMap['APPHOST_NAME']}"
         params['label'] = ''
         params['VALIDATE_MAP'] = paramMap['VALIDATE_MAP']
         params['YML'] = yml
@@ -30,13 +31,66 @@ class GradleBuild implements Serializable {
         def stageSpecificMap = keyMaps[stageMapName]
         stageSpecificMap['TEST_VALUE'] = "IT WORKED"
 
+
+        params.each { entry ->
+            steps.echo "Key: ${entry.key} Value: ${entry.value}"
+        }
+
         def yml = params['YML']
         steps.echo "here is yml"
         steps.echo "${yml}"
 
-
-        //your stage work goes here
         steps.echo "in gradle build stage"
+
+        yml.release.applications.spring.each {
+
+            if (it?.name == params['appHostName']) {
+                steps.deleteDir()
+
+                //stage specific splunk information
+                stageSpecificMap["GIT_REPO"] = keyMaps."${params['appHostName']}".'repo'
+                stageSpecificMap["GIT_BRANCH"] = keyMaps."${params['appHostName']}".'branch'
+
+
+//                steps.unstash "${it.apphost_name}-pre-workspace"
+//
+//                def keyMap = keyMaps[it.apphost_name]
+//                keyMap['GRADLE_VERSION'] = gradleUtil.getGradleVersion(it?.gradle_version)
+//                stageSpecificMap["GRADLE_VERSION"] = keyMap['GRADLE_VERSION']
+//
+//                if (it.skip_tests) {
+//                    gradleUtil.gradleBuild(script, keyMap, '-x test')
+//                    stageSpecificMap["TEST_SKIPPED_${params['appHostName']}"] = 'TRUE'
+//                } else {
+//                    gradleUtil.gradleBuild(script, keyMap)
+//                    stageSpecificMap["TEST_SKIPPED_${params['appHostName']}"] = 'FALSE'
+//                }
+//
+//                if (it.publish_tests) {
+//
+//                    steps.echo "publishing tests"
+//
+//                    def reportDir = it?.report_dir ?: 'build/spock-reports'
+//                    def reportFiles = it?.report_files ?: 'index.html'
+//                    def reportName = it?.report_title ?: 'Ye Old Spock Tests'
+//
+//                    steps.publishHTML(target: [
+//                            allowMissing         : false,
+//                            alwaysLinkToLastBuild: false,
+//                            keepAll              : true,
+//                            reportDir            : "${reportDir}",
+//                            reportFiles          : "${reportFiles}",
+//                            reportName           : "${reportName}"
+//                    ])
+//
+//                } else {
+//                    steps.echo "not publishing tests"
+//                }
+//
+//                steps.stash includes: '**', name: "${it.apphost_name}-workspace"
+
+            }
+        }
 
         steps.dir('styxcd-jenkins') {
             steps.git(
