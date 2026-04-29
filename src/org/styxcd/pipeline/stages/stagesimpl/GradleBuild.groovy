@@ -61,7 +61,7 @@ class GradleBuild implements Serializable {
                     keepAll: true,
                     reportDir: 'build/spock-reports',
                     reportFiles: 'index.html',
-                    reportName: 'Spock Reports'
+                    reportName: 'Shared Library Test Report'
             ])
 
             if (testStatus != 0) {
