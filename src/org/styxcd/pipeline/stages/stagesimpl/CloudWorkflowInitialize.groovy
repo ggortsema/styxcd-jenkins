@@ -8,6 +8,7 @@ class CloudWorkflowInitialize implements Serializable {
      */
     def steps
     MetricsUtil metricsUtil
+    def mvnUtil
 
     /**
      * Constructor
@@ -17,6 +18,7 @@ class CloudWorkflowInitialize implements Serializable {
     public CloudWorkflowInitialize(steps, featureFlags) {
         this.steps = steps
         this.metricsUtil = new org.styxcd.pipeline.utility.MetricsUtil(steps)
+        this.mvnUtil = new org.styxcd.pipeline.utility.MavenUtil(steps, featureFlags)
     }
 
     public Map getParams(yml, paramMap) {
@@ -30,30 +32,39 @@ class CloudWorkflowInitialize implements Serializable {
 
     public void runStage(script, params, keyMaps) {
 
-      keyMaps['BUILD_STATUS'] = 'SUCCESS'
+        keyMaps['BUILD_STATUS'] = 'SUCCESS'
 
-      steps.echo "IN INIT INISDE METHOD"
-      steps.cleanWs()
+        steps.echo "IN INIT INISDE METHOD"
+        steps.cleanWs()
 
-      def startTime = System.currentTimeMillis()
+        def startTime = System.currentTimeMillis()
 
-      metricsUtil.addStageToSplunkMap(script, "CloudWorkflowInitialize*", startTime, null, keyMaps)
-      steps.echo "out of metrics util in init"
+        metricsUtil.addStageToSplunkMap(script, "CloudWorkflowInitialize*", startTime, null, keyMaps)
+        steps.echo "out of metrics util in init"
 
-      params.each { entry ->
-          steps.echo "Key: ${entry.key} Value: ${entry.value}"
-      }
+        params.each { entry ->
+            steps.echo "Key: ${entry.key} Value: ${entry.value}"
+        }
 
-      def validateMap = params['VALIDATE_MAP']
+        def validateMap = params['VALIDATE_MAP']
+        def yml = params['YML']
+        steps.echo "here is yml"
+        steps.echo "${yml}"
 
-      def yml = params['YML']
-      steps.echo "here is yml"
-      steps.echo "${yml}"
+        steps.echo "in cloud workflow init stage"
 
-      //workflow specific intilization stuff goes here
-      steps.echo "in cloud workflow init stage"
+        yml.release.applications.spring.each {
+            keyMaps[it.name] = [:]
+            mvnUtil.gitPull(script, it.repo, it.branch)
 
-      def endTime = System.currentTimeMillis()
-      metricsUtil.addStageToSplunkMap(script, "CloudWorkflowInitialize*", startTime, endTime, keyMaps)
+            keyMaps."${it.name}".'repo' = it.repo
+            keyMaps."${it.name}".'branch' = it.branch
+
+            steps.stash includes: '**', name: "${it.name}-pre-workspace", useDefaultExcludes: false
+            steps.stash includes: '**', name: "${it.name}-workspace"
+        }
+
+        def endTime = System.currentTimeMillis()
+        metricsUtil.addStageToSplunkMap(script, "CloudWorkflowInitialize*", startTime, endTime, keyMaps)
     }
 }

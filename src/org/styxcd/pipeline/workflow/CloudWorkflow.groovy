@@ -18,10 +18,10 @@ def createJsonStageList(yml, getStage) {
         paramMap['APPHOST_NAME'] = it?.name
 
         if (it.build_tool == 'gradle') {
-            jsonOutput["GradleBuild@${paramMap['APPHOST_NAME']}"] = getStage['GradleBuild'].getParams(yml, paramMap)
-        } else {
-            jsonOutput["MvnSonar@${paramMap['APPHOST_NAME']}"] = getStage['MvnSonar'].getParams(yml, paramMap)
-        }
+            jsonOutput["GradleBuild@${paramMap['APPHOST_NAME']}"] = getStage['GradleBuild'].getParams(yml, paramMap) }
+//        } else {
+//            jsonOutput["MvnSonar@${paramMap['APPHOST_NAME']}"] = getStage['MvnSonar'].getParams(yml, paramMap)
+//        }
     }
 
     jsonOutput['CloudWorkflowCleanup@final'] = getStage['CloudWorkflowCleanup'].getParams(yml, paramMap)

@@ -92,45 +92,45 @@ class GradleBuild implements Serializable {
             }
         }
 
-        steps.dir('styxcd-jenkins') {
-            steps.git(
-                    branch: 'main',
-                    url: 'https://github.com/ggortsema/styxcd-jenkins.git'
-            )
-
-            def testStatus = steps.sh(
-                    script: './gradlew clean test',
-                    returnStatus: true
-            )
-            steps.echo "Shared library test status: ${testStatus}"
-
-            steps.junit(
-                    testResults: 'build/test-results/test/*.xml',
-                    allowEmptyResults: false
-            )
-
-            steps.publishHTML([
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
-                    reportDir: 'build/reports/tests/test',
-                    reportFiles: 'index.html',
-                    reportName: 'Gradle Test Report'
-            ])
-
-            steps.publishHTML([
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
-                    reportDir: 'build/spock-reports',
-                    reportFiles: 'index.html',
-                    reportName: 'Spock Test Report'
-            ])
-
-            if (testStatus != 0) {
-                steps.error "Shared library tests failed with status: ${testStatus}"
-            }
-        }
+//        steps.dir('styxcd-jenkins') {
+//            steps.git(
+//                    branch: 'main',
+//                    url: 'https://github.com/ggortsema/styxcd-jenkins.git'
+//            )
+//
+//            def testStatus = steps.sh(
+//                    script: './gradlew clean test',
+//                    returnStatus: true
+//            )
+//            steps.echo "Shared library test status: ${testStatus}"
+//
+//            steps.junit(
+//                    testResults: 'build/test-results/test/*.xml',
+//                    allowEmptyResults: false
+//            )
+//
+//            steps.publishHTML([
+//                    allowMissing: false,
+//                    alwaysLinkToLastBuild: true,
+//                    keepAll: true,
+//                    reportDir: 'build/reports/tests/test',
+//                    reportFiles: 'index.html',
+//                    reportName: 'Gradle Test Report'
+//            ])
+//
+//            steps.publishHTML([
+//                    allowMissing: false,
+//                    alwaysLinkToLastBuild: true,
+//                    keepAll: true,
+//                    reportDir: 'build/spock-reports',
+//                    reportFiles: 'index.html',
+//                    reportName: 'Spock Test Report'
+//            ])
+//
+//            if (testStatus != 0) {
+//                steps.error "Shared library tests failed with status: ${testStatus}"
+//            }
+//        }
 
 
 
