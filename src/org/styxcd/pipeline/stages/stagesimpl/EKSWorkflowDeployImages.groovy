@@ -196,36 +196,44 @@ class EKSWorkflowDeployImages implements Serializable {
                 steps.error "Could not find Route53 hosted zone for ${rootDomain}"
             }
 
+            def albCanonicalHostedZoneId = steps.sh(
+                    script: "aws elbv2 describe-load-balancers --region ${awsRegion} --query \"LoadBalancers[?DNSName=='${albHostname}'].CanonicalHostedZoneId\" --output text",
+                    returnStdout: true
+            ).trim()
+            steps.echo "ALB canonical hosted zone ID: ${albCanonicalHostedZoneId}"
+
+            if (!albCanonicalHostedZoneId?.trim()) {
+                steps.error "Could not find ALB canonical hosted zone ID for ${albHostname}"
+            }
+
             steps.writeFile(
                     file: 'route53-change.json',
                     text: """
 {
-  "Comment": "UPSERT johnny-johnny frontend and backend records to EKS ALB",
+  "Comment": "UPSERT johnny-johnny frontend and backend alias records to EKS ALB",
   "Changes": [
     {
       "Action": "UPSERT",
       "ResourceRecordSet": {
         "Name": "${frontendHost}",
-        "Type": "CNAME",
-        "TTL": 60,
-        "ResourceRecords": [
-          {
-            "Value": "${albHostname}"
-          }
-        ]
+        "Type": "A",
+        "AliasTarget": {
+          "HostedZoneId": "${albCanonicalHostedZoneId}",
+          "DNSName": "${albHostname}",
+          "EvaluateTargetHealth": false
+        }
       }
     },
     {
       "Action": "UPSERT",
       "ResourceRecordSet": {
         "Name": "${backendHost}",
-        "Type": "CNAME",
-        "TTL": 60,
-        "ResourceRecords": [
-          {
-            "Value": "${albHostname}"
-          }
-        ]
+        "Type": "A",
+        "AliasTarget": {
+          "HostedZoneId": "${albCanonicalHostedZoneId}",
+          "DNSName": "${albHostname}",
+          "EvaluateTargetHealth": false
+        }
       }
     }
   ]
