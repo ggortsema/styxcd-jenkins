@@ -134,6 +134,38 @@ class EKSWorkflowClusterBuild implements Serializable {
                     steps.error "Cluster deletion did not complete cleanly with status: ${waitDeleteStatus}"
                 }
 
+                def clusterStackName = "eksctl-${clusterName}-cluster"
+
+                def existingClusterStackStatus = steps.sh(
+                        script: "aws cloudformation describe-stacks --region ${awsRegion} --stack-name ${clusterStackName} --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo NOT_FOUND",
+                        returnStdout: true
+                ).trim()
+                steps.echo "Existing eksctl cluster stack status: ${existingClusterStackStatus}"
+
+                if (existingClusterStackStatus != 'NOT_FOUND') {
+                    steps.echo "Deleting leftover eksctl cluster stack: ${clusterStackName}"
+
+                    def deleteStackStatus = steps.sh(
+                            script: "aws cloudformation delete-stack --region ${awsRegion} --stack-name ${clusterStackName}",
+                            returnStatus: true
+                    )
+                    steps.echo "Delete leftover eksctl cluster stack status: ${deleteStackStatus}"
+
+                    if (deleteStackStatus != 0) {
+                        steps.error "Failed to delete leftover eksctl cluster stack with status: ${deleteStackStatus}"
+                    }
+
+                    def waitStackDeleteStatus = steps.sh(
+                            script: "aws cloudformation wait stack-delete-complete --region ${awsRegion} --stack-name ${clusterStackName}",
+                            returnStatus: true
+                    )
+                    steps.echo "Wait for leftover eksctl cluster stack delete status: ${waitStackDeleteStatus}"
+
+                    if (waitStackDeleteStatus != 0) {
+                        steps.error "Leftover eksctl cluster stack did not delete cleanly with status: ${waitStackDeleteStatus}"
+                    }
+                }
+
                 steps.echo "Cluster deletion completed. Creating EKS cluster."
 
                 def createClusterStatus = steps.sh(

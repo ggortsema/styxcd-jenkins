@@ -130,7 +130,7 @@ class EKSWorkflowClusterTeardown implements Serializable {
                 steps.echo "Delete backend status: ${deleteBackendStatus}"
 
                 def deleteClusterStatus = steps.sh(
-                        script: 'eksctl delete cluster --region us-east-1 --name johnny-johnny-dev',
+                        script: 'eksctl delete cluster --region us-east-1 --name johnny-johnny-dev --wait',
                         returnStatus: true
                 )
                 steps.echo "Delete cluster status: ${deleteClusterStatus}"
