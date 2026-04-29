@@ -141,8 +141,7 @@ class EKSWorkflowLoadBalancingController implements Serializable {
             steps.echo "Load balancer controller service account status: ${serviceAccountStatus}"
 
             def createServiceAccountStatus = steps.sh(
-                    script: "eksctl create iamserviceaccount --cluster ${clusterName} --namespace ${namespace} --name ${serviceAccountName} --attach-policy-arn ${policyArn} --approve --override-existing-serviceaccounts",
-                    returnStatus: true
+                    script: "eksctl create iamserviceaccount --region ${awsRegion} --cluster ${clusterName} --namespace ${namespace} --name ${serviceAccountName} --attach-policy-arn ${policyArn} --approve --override-existing-serviceaccounts",                    returnStatus: true
             )
             steps.echo "Create/update IAM service account status: ${createServiceAccountStatus}"
 
