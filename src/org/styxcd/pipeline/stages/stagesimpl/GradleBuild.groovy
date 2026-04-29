@@ -59,9 +59,18 @@ class GradleBuild implements Serializable {
                     allowMissing: false,
                     alwaysLinkToLastBuild: true,
                     keepAll: true,
+                    reportDir: 'build/reports/tests/test',
+                    reportFiles: 'index.html',
+                    reportName: 'Gradle Test Report'
+            ])
+
+            steps.publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
                     reportDir: 'build/spock-reports',
                     reportFiles: 'index.html',
-                    reportName: 'Shared Library Test Report'
+                    reportName: 'Spock Test Report'
             ])
 
             if (testStatus != 0) {
