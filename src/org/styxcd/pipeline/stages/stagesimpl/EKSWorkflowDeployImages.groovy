@@ -279,7 +279,7 @@ class EKSWorkflowDeployImages implements Serializable {
 
             while (attempt <= maxAttempts) {
                 def frontendStatus = steps.sh(
-                        script: "curl -s -o /dev/null -w \"%{http_code}\" http://${readinessFrontendHost}",
+                        script: "curl -s -o /dev/null -w \"%{http_code}\" http://${readinessFrontendHost} || echo CURL_FAILED",
                         returnStdout: true
                 ).trim()
 
