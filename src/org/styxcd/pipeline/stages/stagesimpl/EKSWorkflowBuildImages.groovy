@@ -135,8 +135,20 @@ class EKSWorkflowBuildImages implements Serializable {
                 steps.error "Failed to clone frontend repo with status: ${cloneFrontendStatus}"
             }
 
+            def javaVersionOutput = steps.sh(
+                    script: 'java -version 2>&1',
+                    returnStdout: true
+            ).trim()
+            steps.echo "Java version before backend build:\n${javaVersionOutput}"
+
+            def mavenVersionOutput = steps.sh(
+                    script: 'mvn -version',
+                    returnStdout: true
+            ).trim()
+            steps.echo "Maven version before backend build:\n${mavenVersionOutput}"
+
             def backendBuildStatus = steps.sh(
-                    script: "cd ${backendDir} && mvn clean package -DskipTests",
+                    script: "cd ${backendDir} && export JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto && export PATH=\$JAVA_HOME/bin:\$PATH && mvn clean package -DskipTests",
                     returnStatus: true
             )
             steps.echo "Backend Maven build status: ${backendBuildStatus}"
