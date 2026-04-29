@@ -12,7 +12,8 @@ def createJsonStageList(yml, getStage) {
     //jsonOutput['EKSWorkflowClusterTeardown'] = getStage['EKSWorkflowClusterTeardown'].getParams(yml, paramMap)
     //jsonOutput['EKSWorkflowClusterBuild'] = getStage['EKSWorkflowClusterBuild'].getParams(yml, paramMap)
     //jsonOutput['EKSWorkflowLoadBalancingController'] = getStage['EKSWorkflowLoadBalancingController'].getParams(yml, paramMap)
-    jsonOutput['EKSWorkflowDeployImages'] = getStage['EKSWorkflowDeployImages'].getParams(yml, paramMap)
+    //jsonOutput['EKSWorkflowDeployImages'] = getStage['EKSWorkflowDeployImages'].getParams(yml, paramMap)
+    jsonOutput['EKSWorkflowBuildImages'] = getStage['EKSWorkflowBuildImages'].getParams(yml, paramMap)
     jsonOutput['EKSWorkflowCleanup@final'] = getStage['EKSWorkflowCleanup'].getParams(yml, paramMap)
 
 

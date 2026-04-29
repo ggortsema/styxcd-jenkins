@@ -15,6 +15,10 @@ def getMap(steps, featureFlags) {
     map["CloudWorkflowInitialize"] = new org.styxcd.pipeline.stages.stagesimpl.CloudWorkflowInitialize(steps, featureFlags)
     map["EKSWorkflowLoadBalancingController"] = new org.styxcd.pipeline.stages.stagesimpl.EKSWorkflowLoadBalancingController(steps, featureFlags)
     map["EKSWorkflowDeployImages"] = new org.styxcd.pipeline.stages.stagesimpl.EKSWorkflowDeployImages(steps, featureFlags)
+    map["EKSWorkflowBuildImages"] = new org.styxcd.pipeline.stages.stagesimpl.EKSWorkflowBuildImages(steps, featureFlags)
+
+
+
 
 
 
