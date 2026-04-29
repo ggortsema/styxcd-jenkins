@@ -196,6 +196,22 @@ class EKSWorkflowLoadBalancingController implements Serializable {
                     returnStdout: true
             ).trim()
             steps.echo "Ingress classes:\n${ingressClassOutput}"
+
+            def albControllerPods = steps.sh(
+                    script: "kubectl get pods -n ${namespace} -l app.kubernetes.io/name=aws-load-balancer-controller",
+                    returnStdout: true
+            ).trim()
+            steps.echo "AWS Load Balancer Controller pods:\n${albControllerPods}"
+
+            def ingressClassStatus = steps.sh(
+                    script: "kubectl get ingressclass alb",
+                    returnStatus: true
+            )
+            steps.echo "ALB ingress class status: ${ingressClassStatus}"
+
+            if (ingressClassStatus != 0) {
+                steps.error "ALB ingress class was not created."
+            }
         }
 
 
