@@ -39,7 +39,8 @@ class EKSWorkflowDeployImages implements Serializable {
 
         steps.withCredentials([
                 steps.string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-                steps.string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                steps.string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                steps.string(credentialsId: 'openai-api-key', variable: 'OPENAI_API_KEY')
         ]) {
             def awsRegion = 'us-east-1'
             def clusterName = 'johnny-johnny-dev'
@@ -77,6 +78,16 @@ class EKSWorkflowDeployImages implements Serializable {
 
             if (albIngressClassStatus != 0) {
                 steps.error "ALB ingress class does not exist. Cannot deploy apps."
+            }
+
+            def openAiSecretApplyStatus = steps.sh(
+                    script: "kubectl create secret generic openai-secret -n ${namespace} --from-literal=OPENAI_API_KEY=\${OPENAI_API_KEY} --dry-run=client -o yaml | kubectl apply -f -",
+                    returnStatus: true
+            )
+            steps.echo "OpenAI secret apply status: ${openAiSecretApplyStatus}"
+
+            if (openAiSecretApplyStatus != 0) {
+                steps.error "Failed to create/apply openai-secret with status: ${openAiSecretApplyStatus}"
             }
 
             def openAiSecretStatus = steps.sh(
