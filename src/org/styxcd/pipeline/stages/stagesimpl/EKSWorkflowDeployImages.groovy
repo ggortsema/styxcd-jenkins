@@ -274,7 +274,7 @@ class EKSWorkflowDeployImages implements Serializable {
             def readinessFrontendHost = frontendHost
             def readinessBackendHost = backendHost
 
-            def maxAttempts = 24
+            def maxAttempts = 48
             def attempt = 1
 
             while (attempt <= maxAttempts) {
@@ -291,7 +291,7 @@ class EKSWorkflowDeployImages implements Serializable {
                 }
 
                 if (attempt == maxAttempts) {
-                    steps.error "Frontend never became ready after ${maxAttempts} attempts (~6 minutes)."
+                    steps.error "Frontend never became ready after ${maxAttempts} attempts (~12 minutes)."
                 }
 
                 attempt++
