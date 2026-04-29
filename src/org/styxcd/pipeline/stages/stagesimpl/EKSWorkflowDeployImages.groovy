@@ -272,6 +272,30 @@ class EKSWorkflowDeployImages implements Serializable {
             steps.echo "Apps deployed. Frontend: http://${frontendHost} Backend: http://${backendHost}"
         }
 
+        def maxAttempts = 24
+        def attempt = 1
+
+        while (attempt <= maxAttempts) {
+            def status = steps.sh(
+                    script: "curl -s -o /dev/null -w \"%{http_code}\" http://${frontendHost}",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "Attempt ${attempt}/${maxAttempts}: frontend status = ${status}"
+
+            if (status == '200') {
+                steps.echo "Frontend is ready."
+                break
+            }
+
+            if (attempt == maxAttempts) {
+                steps.error "Frontend never became ready after ${maxAttempts} attempts (~6 minutes)."
+            }
+
+            attempt++
+            steps.sleep(time: 15, unit: 'SECONDS')
+        }
+
 
 
 
