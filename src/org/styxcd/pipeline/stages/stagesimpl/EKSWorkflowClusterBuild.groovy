@@ -113,14 +113,42 @@ class EKSWorkflowClusterBuild implements Serializable {
                 steps.error "Cluster exists but is not usable. Current AWS status: ${clusterStatusText}"
             }
 
-            def clusterActiveStatus = steps.sh(
-                    script: "aws eks wait cluster-active --region ${awsRegion} --name ${clusterName}",
-                    returnStatus: true
-            )
-            steps.echo "Final wait for cluster active status: ${clusterActiveStatus}"
+            steps.echo "Validating cluster is stably ACTIVE before continuing."
 
-            if (clusterActiveStatus != 0) {
-                steps.error "Cluster is not ACTIVE after create/skip/wait flow. Status: ${clusterActiveStatus}"
+            def stableActiveStatus = steps.sh(
+                    script: "sleep 30 && aws eks describe-cluster --region ${awsRegion} --name ${clusterName} --query cluster.status --output text 2>/dev/null",
+                    returnStdout: true
+            ).trim()
+            steps.echo "Cluster AWS status after stability delay: ${stableActiveStatus}"
+
+            if (stableActiveStatus == 'DELETING') {
+                steps.echo "Cluster changed to DELETING after initial ACTIVE status. Waiting for deletion to complete."
+
+                def waitDeleteStatus = steps.sh(
+                        script: "aws eks wait cluster-deleted --region ${awsRegion} --name ${clusterName}",
+                        returnStatus: true
+                )
+                steps.echo "Wait for cluster deleted status: ${waitDeleteStatus}"
+
+                if (waitDeleteStatus != 0) {
+                    steps.error "Cluster deletion did not complete cleanly with status: ${waitDeleteStatus}"
+                }
+
+                steps.echo "Cluster deletion completed. Creating EKS cluster."
+
+                def createClusterStatus = steps.sh(
+                        script: "eksctl create cluster --name ${clusterName} --region ${awsRegion} --nodes ${nodeCount} --node-type ${nodeType} --managed",
+                        returnStatus: true
+                )
+                steps.echo "Create cluster status after deletion: ${createClusterStatus}"
+
+                if (createClusterStatus != 0) {
+                    steps.error "EKS cluster creation failed after deletion with status: ${createClusterStatus}"
+                }
+            } else if (stableActiveStatus == 'ACTIVE') {
+                steps.echo "Cluster is stably ACTIVE. Continuing."
+            } else {
+                steps.error "Cluster is not in a usable stable state. Current status: ${stableActiveStatus}"
             }
 
             steps.echo "Updating kubeconfig."
