@@ -54,7 +54,7 @@ class GradleBuild implements Serializable {
                 steps.echo "repo: " + stageSpecificMap["GIT_REPO"]
                 steps.echo "branch: " + stageSpecificMap["GIT_BRANCH"]
 
-                steps.unstash "${it.apphost_name}-pre-workspace"
+                steps.unstash "${it.name}-pre-workspace"
 
                 def keyMap = keyMaps[it.name]
 
