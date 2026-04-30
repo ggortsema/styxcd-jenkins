@@ -90,10 +90,9 @@ class GradleBuild implements Serializable {
                     steps.error "Shared library tests failed with status: ${testStatus}"
                 }
 
+                steps.stash includes: '**', name: "${it.name}-workspace"
+
             }
         }
-
-        steps.stash includes: '**', name: "${it.name}-workspace"
-
     }
 }
