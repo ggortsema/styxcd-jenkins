@@ -51,88 +51,49 @@ class GradleBuild implements Serializable {
                 stageSpecificMap["GIT_REPO"] = keyMaps."${params['appHostName']}".'repo'
                 stageSpecificMap["GIT_BRANCH"] = keyMaps."${params['appHostName']}".'branch'
 
+                steps.echo "repo: " + stageSpecificMap["GIT_REPO"]
+                steps.echo "branch: " + stageSpecificMap["GIT_BRANCH"]
 
-//                steps.unstash "${it.apphost_name}-pre-workspace"
-//
-//                def keyMap = keyMaps[it.apphost_name]
-//                keyMap['GRADLE_VERSION'] = gradleUtil.getGradleVersion(it?.gradle_version)
-//                stageSpecificMap["GRADLE_VERSION"] = keyMap['GRADLE_VERSION']
-//
-//                if (it.skip_tests) {
-//                    gradleUtil.gradleBuild(script, keyMap, '-x test')
-//                    stageSpecificMap["TEST_SKIPPED_${params['appHostName']}"] = 'TRUE'
-//                } else {
-//                    gradleUtil.gradleBuild(script, keyMap)
-//                    stageSpecificMap["TEST_SKIPPED_${params['appHostName']}"] = 'FALSE'
-//                }
-//
-//                if (it.publish_tests) {
-//
-//                    steps.echo "publishing tests"
-//
-//                    def reportDir = it?.report_dir ?: 'build/spock-reports'
-//                    def reportFiles = it?.report_files ?: 'index.html'
-//                    def reportName = it?.report_title ?: 'Ye Old Spock Tests'
-//
-//                    steps.publishHTML(target: [
-//                            allowMissing         : false,
-//                            alwaysLinkToLastBuild: false,
-//                            keepAll              : true,
-//                            reportDir            : "${reportDir}",
-//                            reportFiles          : "${reportFiles}",
-//                            reportName           : "${reportName}"
-//                    ])
-//
-//                } else {
-//                    steps.echo "not publishing tests"
-//                }
-//
-//                steps.stash includes: '**', name: "${it.apphost_name}-workspace"
+                steps.unstash "${it.apphost_name}-pre-workspace"
+
+                def keyMap = keyMaps[it.name]
+
+                def testStatus = steps.sh(
+                        script: './gradlew clean test',
+                        returnStatus: true
+                )
+
+                steps.junit(
+                        testResults: 'build/test-results/test/*.xml',
+                        allowEmptyResults: false
+                )
+
+                steps.publishHTML([
+                        allowMissing         : false,
+                        alwaysLinkToLastBuild: true,
+                        keepAll              : true,
+                        reportDir            : 'build/reports/tests/test',
+                        reportFiles          : 'index.html',
+                        reportName           : 'Gradle Test Report'
+                ])
+
+                steps.publishHTML([
+                        allowMissing         : false,
+                        alwaysLinkToLastBuild: true,
+                        keepAll              : true,
+                        reportDir            : 'build/spock-reports',
+                        reportFiles          : 'index.html',
+                        reportName           : 'Spock Test Report'
+                ])
+
+                if (testStatus != 0) {
+                    steps.error "Shared library tests failed with status: ${testStatus}"
+                }
 
             }
         }
 
-//        steps.dir('styxcd-jenkins') {
-//            steps.git(
-//                    branch: 'main',
-//                    url: 'https://github.com/ggortsema/styxcd-jenkins.git'
-//            )
-//
-//            def testStatus = steps.sh(
-//                    script: './gradlew clean test',
-//                    returnStatus: true
-//            )
-//            steps.echo "Shared library test status: ${testStatus}"
-//
-//            steps.junit(
-//                    testResults: 'build/test-results/test/*.xml',
-//                    allowEmptyResults: false
-//            )
-//
-//            steps.publishHTML([
-//                    allowMissing: false,
-//                    alwaysLinkToLastBuild: true,
-//                    keepAll: true,
-//                    reportDir: 'build/reports/tests/test',
-//                    reportFiles: 'index.html',
-//                    reportName: 'Gradle Test Report'
-//            ])
-//
-//            steps.publishHTML([
-//                    allowMissing: false,
-//                    alwaysLinkToLastBuild: true,
-//                    keepAll: true,
-//                    reportDir: 'build/spock-reports',
-//                    reportFiles: 'index.html',
-//                    reportName: 'Spock Test Report'
-//            ])
-//
-//            if (testStatus != 0) {
-//                steps.error "Shared library tests failed with status: ${testStatus}"
-//            }
-//        }
-
-
+        steps.stash includes: '**', name: "${it.name}-workspace"
 
     }
 }
