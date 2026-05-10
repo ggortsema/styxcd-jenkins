@@ -63,7 +63,7 @@ class BuildECSFargateCluster implements Serializable {
 
             validateSecurityGroupsIfProvided(awsRegion, securityGroupIds)
 
-            validateTaskExecutionRole(taskExecutionRoleName)
+            createOrValidateTaskExecutionRole(taskExecutionRoleName)
 
             createOrValidateLogGroup(awsRegion, logGroupName)
 
@@ -195,22 +195,6 @@ class BuildECSFargateCluster implements Serializable {
         }
     }
 
-    private void validateTaskExecutionRole(String taskExecutionRoleName) {
-
-        steps.echo "validating ecs task execution role: ${taskExecutionRoleName}"
-
-        def roleArn = steps.sh(
-            script: "aws iam get-role --role-name ${taskExecutionRoleName} --query 'Role.Arn' --output text 2>/dev/null || echo NOT_FOUND",
-            returnStdout: true
-        ).trim()
-
-        if (roleArn == 'NOT_FOUND' || roleArn == 'None' || !roleArn) {
-            steps.error "ecs task execution role not found: ${taskExecutionRoleName}. Create it or pass task_execution_role_name in the YAML."
-        }
-
-        steps.echo "ecs task execution role validated: ${roleArn}"
-    }
-
     private void createOrValidateLogGroup(String awsRegion, String logGroupName) {
 
         steps.echo "creating or validating cloudwatch log group: ${logGroupName}"
@@ -287,5 +271,66 @@ class BuildECSFargateCluster implements Serializable {
         } catch (Exception ignored) {
             return []
         }
+    }
+
+    private void createOrValidateTaskExecutionRole(String taskExecutionRoleName) {
+
+        steps.echo "creating or validating ecs task execution role: ${taskExecutionRoleName}"
+
+        def roleExistsStatus = steps.sh(
+                script: "aws iam get-role --role-name ${taskExecutionRoleName} >/dev/null 2>&1",
+                returnStatus: true
+        )
+
+        if (roleExistsStatus == 0) {
+            steps.echo "ecs task execution role already exists: ${taskExecutionRoleName}"
+        } else {
+
+            steps.echo "ecs task execution role not found. creating: ${taskExecutionRoleName}"
+
+            steps.writeFile file: 'ecs-task-execution-role-trust-policy.json', text: '''
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ecs-tasks.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+'''
+
+            def createRoleStatus = steps.sh(
+                    script: "aws iam create-role --role-name ${taskExecutionRoleName} --assume-role-policy-document file://ecs-task-execution-role-trust-policy.json",
+                    returnStatus: true
+            )
+
+            if (createRoleStatus != 0) {
+                steps.error "failed to create ecs task execution role: ${taskExecutionRoleName}. status=${createRoleStatus}"
+            }
+
+            steps.echo "ecs task execution role created: ${taskExecutionRoleName}"
+        }
+
+        steps.echo "attaching ecs task execution managed policy"
+
+        def attachPolicyStatus = steps.sh(
+                script: "aws iam attach-role-policy --role-name ${taskExecutionRoleName} --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
+                returnStatus: true
+        )
+
+        if (attachPolicyStatus != 0) {
+            steps.error "failed to attach AmazonECSTaskExecutionRolePolicy to role: ${taskExecutionRoleName}. status=${attachPolicyStatus}"
+        }
+
+        def roleArn = steps.sh(
+                script: "aws iam get-role --role-name ${taskExecutionRoleName} --query 'Role.Arn' --output text",
+                returnStdout: true
+        ).trim()
+
+        steps.echo "ecs task execution role ready: ${roleArn}"
     }
 }
