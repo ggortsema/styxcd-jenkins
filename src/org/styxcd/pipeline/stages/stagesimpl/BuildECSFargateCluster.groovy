@@ -288,20 +288,21 @@ class BuildECSFargateCluster implements Serializable {
 
             steps.echo "ecs task execution role not found. creating: ${taskExecutionRoleName}"
 
-            steps.writeFile file: 'ecs-task-execution-role-trust-policy.json', text: '''
+            steps.writeFile(
+                    file: 'ecs-task-execution-role-trust-policy.json',
+                    text: '''{
+"Version":"2012-10-17",
+"Statement":[
 {
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "ecs-tasks.amazonaws.com"
-      },
-      "Action": "sts:AssumeRole"
-    }
-  ]
+"Effect":"Allow",
+"Principal":{
+"Service":"ecs-tasks.amazonaws.com"
+},
+"Action":"sts:AssumeRole"
 }
-'''
+]
+}'''
+            )
 
             def createRoleStatus = steps.sh(
                     script: "aws iam create-role --role-name ${taskExecutionRoleName} --assume-role-policy-document file://ecs-task-execution-role-trust-policy.json",
