@@ -94,39 +94,33 @@ class BuildECSFargateCluster implements Serializable {
         steps.echo "creating or validating ecs cluster: ${clusterName}"
 
         def clusterStatus = steps.sh(
-            script: "aws ecs describe-clusters --region ${awsRegion} --clusters ${clusterName} --query 'clusters[0].status' --output text 2>/dev/null || echo NOT_FOUND",
-            returnStdout: true
+                script: "aws ecs describe-clusters --region ${awsRegion} --clusters ${clusterName} --query 'clusters[0].status' --output text 2>/dev/null || echo NOT_FOUND",
+                returnStdout: true
         ).trim()
+
+        steps.echo "current ecs cluster status: ${clusterStatus}"
 
         if (clusterStatus == 'ACTIVE') {
             steps.echo "ecs cluster already exists and is ACTIVE"
             return
         }
 
-        if (clusterStatus == 'INACTIVE') {
-            steps.echo "ecs cluster exists but is INACTIVE. waiting before recreate."
-
-            waitForClusterToDisappearOrBecomeCreatable(awsRegion, clusterName)
-
-            steps.echo "inactive cluster cleared. continuing with create."
-        }
-
         if (clusterStatus != 'NOT_FOUND' && clusterStatus != 'None' && clusterStatus != 'INACTIVE') {
-            steps.error "ecs cluster exists but is not ACTIVE. cluster=${clusterName}, status=${clusterStatus}"
+            steps.error "ecs cluster exists but is not usable. cluster=${clusterName}, status=${clusterStatus}"
         }
 
-        steps.echo "ecs cluster not found. creating: ${clusterName}"
+        steps.echo "ecs cluster status is ${clusterStatus}. creating/recreating cluster: ${clusterName}"
 
         def createStatus = steps.sh(
-            script: "aws ecs create-cluster --cluster-name ${clusterName} --region ${awsRegion}",
-            returnStatus: true
+                script: "aws ecs create-cluster --cluster-name ${clusterName} --region ${awsRegion}",
+                returnStatus: true
         )
 
         if (createStatus != 0) {
-            steps.error "failed to create ecs cluster. cluster=${clusterName}, status=${createStatus}"
+            steps.error "failed to create ecs cluster. cluster=${clusterName}, previousStatus=${clusterStatus}, createStatus=${createStatus}"
         }
 
-        steps.echo "ecs cluster created: ${clusterName}"
+        steps.echo "ecs cluster created/recreated: ${clusterName}"
     }
 
     private void validateVpcIfProvided(String awsRegion, String vpcId) {
@@ -345,8 +339,8 @@ class BuildECSFargateCluster implements Serializable {
 
     private void waitForClusterToDisappearOrBecomeCreatable(String awsRegion, String clusterName) {
 
-        int maxAttempts = 30
-        int sleepSeconds = 5
+        int maxAttempts = 45
+        int sleepSeconds = 15
 
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
 
