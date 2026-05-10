@@ -32,8 +32,14 @@ def call(body) {
     def featureFlags = new org.styxcd.pipeline.FeatureFlags(this, env.STYXCD_FEATURE_FLAGS, yml.feature_flags)
     featureFlags.prettyPrint()
 
-    def workflowString = yml?.workflow ?: 'pcf_workflow'
-    def workflow = getWorkflow[workflowString]
+    def workflowString = yml?.workflow ?: 'cloud_workflow'
+
+    def workflowFactory = getWorkflow[workflowString]
+    if (workflowFactory == null) {
+        throw new RuntimeException("No workflow registered for key: ${workflowString}")
+    }
+
+    def workflow = workflowFactory()
     if (!workflow) {
         error("there is no workflow defined for ${yml.workflow}.")
     }
