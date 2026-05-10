@@ -8,32 +8,36 @@ def createJsonStageList(yml, getStage) {
     def paramMap = [:]
     paramMap['VALIDATE_MAP'] = preprocessYml(yml)
 
+    jsonOutput['EKSWorkflowInitialize'] = getStageParams(getStage, 'EKSWorkflowInitialize', yml, paramMap)
 
-    jsonOutput['EKSWorkflowInitialize'] = getStage['EKSWorkflowInitialize'].getParams(yml, paramMap)
-
-    if(yml?.teardown_env) {
-        //jsonOutput['EKSWorkflowClusterTeardown'] = getStage['EKSWorkflowClusterTeardown'].getParams(yml, paramMap)
-        jsonOutput['ScaleDownECSFargateApplications'] = getStage['ScaleDownECSFargateApplications'].getParams(yml, paramMap)
-        jsonOutput['DestroyECSFargateCluster'] = getStage['DestroyECSFargateCluster'].getParams(yml, paramMap)
-    }
-    if(yml?.build_env) {
-        //jsonOutput['EKSWorkflowClusterBuild'] = getStage['EKSWorkflowClusterBuild'].getParams(yml, paramMap)
-        //jsonOutput['EKSWorkflowLoadBalancingController'] = getStage['EKSWorkflowLoadBalancingController'].getParams(yml, paramMap)
-        jsonOutput['BuildECSFargateCluster'] = getStage['BuildECSFargateCluster'].getParams(yml, paramMap)
-    }
-    if(yml?.depploy_apps) {
-        //jsonOutput['EKSWorkflowBuildImages'] = getStage['EKSWorkflowBuildImages'].getParams(yml, paramMap)
-        //jsonOutput['EKSWorkflowDeployImages'] = getStage['EKSWorkflowDeployImages'].getParams(yml, paramMap)
-        jsonOutput['DeployECSFargateApplications'] = getStage['DeployECSFargateApplications'].getParams(yml, paramMap)
+    if (yml?.teardown_env) {
+        jsonOutput['ScaleDownECSFargateApplications'] = getStageParams(getStage, 'ScaleDownECSFargateApplications', yml, paramMap)
+        jsonOutput['DestroyECSFargateCluster'] = getStageParams(getStage, 'DestroyECSFargateCluster', yml, paramMap)
     }
 
+    if (yml?.build_env) {
+        jsonOutput['BuildECSFargateCluster'] = getStageParams(getStage, 'BuildECSFargateCluster', yml, paramMap)
+    }
 
+    if (yml?.deploy_apps) {
+        jsonOutput['DeployECSFargateApplications'] = getStageParams(getStage, 'DeployECSFargateApplications', yml, paramMap)
+    }
 
-    jsonOutput['EKSWorkflowCleanup@final'] = getStage['EKSWorkflowCleanup'].getParams(yml, paramMap)
-
-
+    jsonOutput['EKSWorkflowCleanup@final'] = getStageParams(getStage, 'EKSWorkflowCleanup', yml, paramMap)
 
     return jsonOutput
+}
+
+private def getStageParams(getStage, String stageKey, yml, paramMap) {
+    def stageFactory = getStage[stageKey]
+
+    if (stageFactory == null) {
+        throw new RuntimeException("No stage registered for key: ${stageKey}")
+    }
+
+    def stageLogic = stageFactory()
+
+    return stageLogic.getParams(yml, paramMap)
 }
 
 private Map preprocessYml(yml) {

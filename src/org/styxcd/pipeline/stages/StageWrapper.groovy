@@ -30,15 +30,14 @@ class StageWrapper implements Serializable {
 
     def run(params, keyMaps, Map getStage, key) {
 
-        //def stageLogic = getStage[key]
-        def stageClass = this.class.classLoader.loadClass(
-                "org.styxcd.pipeline.stages.stagesimpl.${key}"
-        )
+        def stageFactory = getStage[key]
 
-        def stageLogic = stageClass
-                .declaredConstructors
-                .find { it.parameterTypes.size() == 2 }
-                .newInstance(steps, featureFlags)
+        if (stageFactory == null) {
+            throw new RuntimeException("No stage registered for key: ${key}")
+        }
+
+        def stageLogic = stageFactory()
+
 
         steps.stage(params['stagename']) {
             steps.node(params['label']) {
