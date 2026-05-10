@@ -103,7 +103,15 @@ class BuildECSFargateCluster implements Serializable {
             return
         }
 
-        if (clusterStatus != 'NOT_FOUND' && clusterStatus != 'None') {
+        if (clusterStatus == 'INACTIVE') {
+            steps.echo "ecs cluster exists but is INACTIVE. waiting before recreate."
+
+            waitForClusterToDisappearOrBecomeCreatable(awsRegion, clusterName)
+
+            steps.echo "inactive cluster cleared. continuing with create."
+        }
+
+        if (clusterStatus != 'NOT_FOUND' && clusterStatus != 'None' && clusterStatus != 'INACTIVE') {
             steps.error "ecs cluster exists but is not ACTIVE. cluster=${clusterName}, status=${clusterStatus}"
         }
 
@@ -333,5 +341,29 @@ class BuildECSFargateCluster implements Serializable {
         ).trim()
 
         steps.echo "ecs task execution role ready: ${roleArn}"
+    }
+
+    private void waitForClusterToDisappearOrBecomeCreatable(String awsRegion, String clusterName) {
+
+        int maxAttempts = 30
+        int sleepSeconds = 5
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+
+            def status = steps.sh(
+                    script: "aws ecs describe-clusters --region ${awsRegion} --clusters ${clusterName} --query 'clusters[0].status' --output text 2>/dev/null || echo NOT_FOUND",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "waiting for inactive cluster to clear. attempt=${attempt}, status=${status}"
+
+            if (status == 'NOT_FOUND' || status == 'None') {
+                return
+            }
+
+            steps.sleep sleepSeconds
+        }
+
+        steps.error "timed out waiting for inactive ecs cluster to clear: ${clusterName}"
     }
 }
