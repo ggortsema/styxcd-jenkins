@@ -30,7 +30,15 @@ class StageWrapper implements Serializable {
 
     def run(params, keyMaps, Map getStage, key) {
 
-        def stageLogic = getStage[key]
+        //def stageLogic = getStage[key]
+        def stageClass = this.class.classLoader.loadClass(
+                "org.styxcd.pipeline.stages.stagesimpl.${key}"
+        )
+
+        def stageLogic = stageClass
+                .declaredConstructors
+                .find { it.parameterTypes.size() == 2 }
+                .newInstance(steps, featureFlags)
 
         steps.stage(params['stagename']) {
             steps.node(params['label']) {
