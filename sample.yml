@@ -1,6 +1,23 @@
+workflow: cloud_workflow
+
 release:
   name: johnny-platform-release
   version: 1.0.0
+
+  desired_state:
+    environment: present
+    applications: deployed
+
+    # Other valid desired_state examples:
+    #
+    # environment: absent
+    # applications: none
+    #
+    # environment: ephemeral
+    # applications: deployed
+    #
+    # environment: present
+    # applications: built
 
   applications:
     spring:
@@ -8,31 +25,63 @@ release:
         repo: someplace
         branch: main
         version: 1.0.0
+
         build:
           type: maven-docker
           project_path: .
           dockerfile: Dockerfile
           artifact_target: ecr
 
+        runtime:
+          container_port: 8080
+          health_check_path: /actuator/health
+
       - name: second-app
         repo: someplace
         branch: main
+
         build:
           type: maven-docker
           project_path: .
           dockerfile: Dockerfile
           artifact_target: ecr
+
+        runtime:
+          container_port: 8080
+          health_check_path: /actuator/health
 
     node:
       - name: first-node-app
         repo: someplace
         branch: main
         version: 1.0.0
+
         build:
           type: docker
           project_path: .
           dockerfile: Dockerfile
           artifact_target: ecr
+
+        runtime:
+          container_port: 80
+          health_check_path: /
+
+    python:
+      - name: fastapi-app
+        repo: someplace
+        branch: main
+        version: 1.0.0
+
+        build:
+          type: python-docker
+          framework: fastapi
+          project_path: .
+          dockerfile: Dockerfile
+          artifact_target: ecr
+
+        runtime:
+          container_port: 8000
+          health_check_path: /health
 
   test_suites:
     integration:
@@ -56,27 +105,44 @@ release:
         branch: main
 
       - name: dev-b
-        platform: eks
+        platform: ecs
         location: us-east-2
         deployment_repo: someplace
         branch: main
 
+        ecs:
+          launch_type: fargate
+          cluster: dev-b-cluster
+          desired_count: 1
+          assign_public_ip: true
+
     qa:
       - name: qa-a
-        platform: eks
+        platform: ecs
         location: us-east-1
         deployment_repo: someplace
         branch: main
+
+        ecs:
+          launch_type: ec2
+          cluster: qa-a-cluster
+          desired_count: 2
+          capacity_provider: qa-ec2-capacity-provider
+
         test_overrides:
           skip:
             - performance
 
     stage:
       - name: stage-a
-        platform: eks
-        location: us-east-1
+        platform: aks
+        location: eastus
         deployment_repo: someplace
         branch: main
+
+        aks:
+          resource_group: stage-platform-rg
+          cluster_name: stage-a-aks
 
     prod:
       - name: prod-a
@@ -84,6 +150,7 @@ release:
         location: us-east-1
         deployment_repo: someplace
         branch: main
+
         test_overrides:
           skip:
             - performance

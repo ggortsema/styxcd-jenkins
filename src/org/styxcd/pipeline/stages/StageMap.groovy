@@ -16,6 +16,15 @@ def getMap(steps, featureFlags) {
     map["EKSWorkflowLoadBalancingController"] = new org.styxcd.pipeline.stages.stagesimpl.EKSWorkflowLoadBalancingController(steps, featureFlags)
     map["EKSWorkflowDeployImages"] = new org.styxcd.pipeline.stages.stagesimpl.EKSWorkflowDeployImages(steps, featureFlags)
     map["EKSWorkflowBuildImages"] = new org.styxcd.pipeline.stages.stagesimpl.EKSWorkflowBuildImages(steps, featureFlags)
+    map["BuildECSFargateCluster"] = new org.styxcd.pipeline.stages.stagesimpl.BuildECSFargateCluster(steps, featureFlags)
+    map["ScaleDownECSFargateApplications"] = new org.styxcd.pipeline.stages.stagesimpl.ScaleDownECSFargateApplications(steps, featureFlags)
+    map["DestroyECSFargateCluster"] = new org.styxcd.pipeline.stages.stagesimpl.DestroyECSFargateCluster(steps, featureFlags)
+    map["DeployECSFargateApplications"] = new org.styxcd.pipeline.stages.stagesimpl.DeployECSFargateApplications(steps, featureFlags)
+
+
+
+
+
 
 
 
