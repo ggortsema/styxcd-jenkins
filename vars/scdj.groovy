@@ -48,16 +48,16 @@ def call(body) {
     //Here we call the workflow or at some point an external source to get the json list of stages and
     //parameters
     def getStage = new org.styxcd.pipeline.stages.StageMap().getMap(this, featureFlags)
-    ralfJson = workflow.createJsonStageList(yml, getStage)
+    //ralfJson = workflow.createJsonStageList(yml, getStage)
 
     def orchestratorUrl = "http://orchestrator.styxcd.com"
-    def executionId = "855e2c90-8cc8-4148-a2e3-683f047d0178"
+    def executionId = "e79267f6-2b76-472f-844f-af12b3902d21"
     def response = httpRequest(
             url: "${orchestratorUrl}/executions/${executionId}/plan",
             httpMode: 'GET',
             validResponseCodes: '200'
     )
-    ralfJson = ralfJson = readJSON(text: response.content)
+    ralfJson = readJSON(text: response.content)
 
     echo "running this workflow: ${ralfJson}"
     def tryMap = [:]
