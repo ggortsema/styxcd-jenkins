@@ -1,7 +1,5 @@
 def call(body) {
     def pipelineParams = [:]
-    def yml
-    def getWorkflow = new org.styxcd.pipeline.workflow.WorkflowMap().getMap()
     def ralfJson
     def keyMaps = [:]
     def config
@@ -19,89 +17,80 @@ def call(body) {
 
     echo "IN scdj with ${pipelineParams}"
 
-    if(pipelineParams.yml) {
-        yml_string = pipelineParams.yml
-        echo "HERE IS THE YML STRING WE ARE GETTING:"
-        echo yml_string
-        yml = readYaml text: yml_string
+    def requestString = pipelineParams.styxcdRequest ?: params.STYXCD_REQUEST
 
+    if (!requestString?.trim()) {
+        error("Missing required STYXCD_REQUEST JSON string.")
     }
 
-    echo "Declarative Specification:\n\n${yml_string}"
+    def styxcdRequest = readJSON(text: requestString)
 
-    def featureFlags = new org.styxcd.pipeline.FeatureFlags(this, env.STYXCD_FEATURE_FLAGS, yml.feature_flags)
+    def orchestratorUrl = styxcdRequest.orchestratorUrl ?: "http://orchestrator.styxcd.com"
+    orchestratorUrl = orchestratorUrl.replaceAll('/+$', '')
+
+    def executionId = styxcdRequest.executionId
+
+    if (!executionId?.trim()) {
+        error("Missing required field: executionId")
+    }
+
+    def callbackUrl = styxcdRequest.callbackUrl
+
+    echo "Execution ID: ${executionId}"
+    echo "Orchestrator URL: ${orchestratorUrl}"
+    echo "Callback URL: ${callbackUrl ?: 'not provided'}"
+
+    def featureFlags = new org.styxcd.pipeline.FeatureFlags(
+            this,
+            env.STYXCD_FEATURE_FLAGS,
+            styxcdRequest.feature_flags ?: [:]
+    )
     featureFlags.prettyPrint()
 
-    def workflowString = yml?.workflow ?: 'cloud_workflow'
-
-    def workflowFactory = getWorkflow[workflowString]
-    if (workflowFactory == null) {
-        throw new RuntimeException("No workflow registered for key: ${workflowString}")
-    }
-
-    def workflow = workflowFactory()
-    if (!workflow) {
-        error("there is no workflow defined for ${yml.workflow}.")
-    }
-    echo "workflow is ${yml.workflow}"
-
-    //Here we call the workflow or at some point an external source to get the json list of stages and
-    //parameters
     def getStage = new org.styxcd.pipeline.stages.StageMap().getMap(this, featureFlags)
-    //ralfJson = workflow.createJsonStageList(yml, getStage)
-
-    def orchestratorUrl = "http://orchestrator.styxcd.com"
-    def executionId = "e79267f6-2b76-472f-844f-af12b3902d21"
+    
     def response = httpRequest(
             url: "${orchestratorUrl}/executions/${executionId}/plan",
             httpMode: 'GET',
             validResponseCodes: '200'
     )
+
     ralfJson = readJSON(text: response.content)
 
+    if (!ralfJson || ralfJson.isEmpty()) {
+        error("Execution plan was empty for executionId: ${executionId}")
+    }
     echo "running this workflow: ${ralfJson}"
+
     def tryMap = [:]
     def finalMap = [:]
 
-    //turn the JSON into maps and pull some pertinant information from the strings. We break things up into things
-    //that can run normally and things that need to run in a finally block
     ralfJson.each { key, value ->
-        def index = key.indexOf('@')
-        def endString
-        if (index != -1) {
-            endString = key.substring(index)
-        }
-        if (endString && endString.contains('final')) {
+        if (key.contains('@final')) {
             finalMap[key] = value
         } else {
             tryMap[key] = value
         }
     }
 
-    //run the stages in order from the maps we created and then run the final stages in a finally block
-    //for things like cleanup etc.
-
     def stageWrapper = new org.styxcd.pipeline.stages.StageWrapper(this)
 
     stageWrapper.initializeBuildInformation(featureFlags.getEnabledFlags(), keyMaps)
 
+    def normalizeStageName = { String key ->
+        key.contains('@') ? key.substring(0, key.indexOf('@')) : key
+    }
+
+    def runStageMap = { Map stageMap ->
+        stageMap.each { key, value ->
+            def stageName = normalizeStageName(key as String)
+            stageWrapper.run(value, keyMaps, getStage, stageName)
+        }
+    }
+
     try {
-        tryMap.each { key, value ->
-            def index = key.indexOf('@')
-
-            if (index != -1) {
-                key = key.substring(0, index)
-            }
-            stageWrapper.run(value, keyMaps, getStage, key)
-        }
+        runStageMap(tryMap)
     } finally {
-        finalMap.each { key, value ->
-            def index = key.indexOf('@')
-
-            if (index != -1) {
-                key = key.substring(0, index)
-            }
-            stageWrapper.run(value, keyMaps, getStage, key)
-        }
+        runStageMap(finalMap)
     }
 }
