@@ -57,7 +57,7 @@ def call(body) {
             httpMode: 'GET',
             validResponseCodes: '200'
     )
-    ralfJson = new groovy.json.JsonSlurperClassic().parseText(response.content)
+    ralfJson = ralfJson = readJSON(text: response.content)
 
     echo "running this workflow: ${ralfJson}"
     def tryMap = [:]
