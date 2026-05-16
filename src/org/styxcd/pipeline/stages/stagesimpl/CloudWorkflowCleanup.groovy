@@ -1,6 +1,7 @@
 package org.styxcd.pipeline.stages.stagesimpl
 
 import org.styxcd.pipeline.utility.MetricsUtil
+import groovy.json.JsonOutput
 
 
 class CloudWorkflowCleanup implements Serializable {
@@ -22,34 +23,65 @@ class CloudWorkflowCleanup implements Serializable {
 
     public void runStage(script, params, keyMaps) {
 
-      def startTime = System.currentTimeMillis()
-      metricsUtil.addStageToSplunkMap(script, "CloudWorkflowCleanup*", startTime, null, keyMaps)
+        def startTime = System.currentTimeMillis()
+        metricsUtil.addStageToSplunkMap(script, "CloudWorkflowCleanup*", startTime, null, keyMaps)
 
-      params.each { entry ->
-          steps.echo "Key: ${entry.key} Value: ${entry.value}"
-      }
+        params.each { entry ->
+            steps.echo "Key: ${entry.key} Value: ${entry.value}"
+        }
 
-      def yml = params['YML']
+        def yml = params['YML']
 
-      //your cleanup code goes here
-      steps.echo "in cloud workflow cleanup stage"
+        //your cleanup code goes here
+        steps.echo "in cloud workflow cleanup stage"
 
-      def endTime = System.currentTimeMillis()
-      metricsUtil.addStageToSplunkMap(script, "CloudWorkflowCleanup*", startTime, endTime, keyMaps)
+        def endTime = System.currentTimeMillis()
+        metricsUtil.addStageToSplunkMap(script, "CloudWorkflowCleanup*", startTime, endTime, keyMaps)
 
 
-      def splunkMap = keyMaps["SPLUNK_MAP"]
-      splunkMap["END_TIME"] = endTime
-      splunkMap["BUILD_END_TIME"] = endTime - (splunkMap['BUILD_START_TIME'] as Long)
-      splunkMap["BUILD_STATUS"] = keyMaps['BUILD_STATUS']
-      splunkMap["BUILD_FAILURE_MESSAGE"] = keyMaps['BUILD_FAILURE_MESSAGE']
+        def splunkMap = keyMaps["SPLUNK_MAP"]
+        splunkMap["END_TIME"] = endTime
+        splunkMap["BUILD_END_TIME"] = endTime - (splunkMap['BUILD_START_TIME'] as Long)
+        splunkMap["BUILD_STATUS"] = keyMaps['BUILD_STATUS']
+        splunkMap["BUILD_FAILURE_MESSAGE"] = keyMaps['BUILD_FAILURE_MESSAGE']
 
-      def alertMaps = metricsUtil.sendJSONToSplunk(script, splunkMap)
-      steps.echo "in method here is splunk response: ${alertMaps['SPLUNK_RESPONSE']}"
+        def alertMaps = metricsUtil.sendJSONToSplunk(script, splunkMap)
+        steps.echo "in method here is splunk response: ${alertMaps['SPLUNK_RESPONSE']}"
 
-      keyMaps.findAll { it.key.startsWith("SPLUNK_STAGE_") }.each { _, value ->
-          alertMaps = metricsUtil.sendJSONToSplunk(script, value)
-          steps.echo "in stage only part here is splunk response: ${alertMaps['SPLUNK_RESPONSE']}"
-      }
+        keyMaps.findAll { it.key.startsWith("SPLUNK_STAGE_") }.each { _, value ->
+            alertMaps = metricsUtil.sendJSONToSplunk(script, value)
+            steps.echo "in stage only part here is splunk response: ${alertMaps['SPLUNK_RESPONSE']}"
+        }
+
+        def callbackUrl = keyMaps['CALLBACK_URL']
+        def executionId = keyMaps['EXECUTION_ID']
+
+        if (callbackUrl && executionId) {
+            def buildStatus = keyMaps['BUILD_STATUS'] ?: steps.currentBuild.currentResult ?: 'SUCCESS'
+            def orchestratorStatus = buildStatus == 'SUCCESS' ? 'SUCCESS' : 'FAILED'
+
+            def payload = [
+                    executionId: executionId,
+                    status     : orchestratorStatus,
+                    message    : "Jenkins execution completed with status ${buildStatus}"
+            ]
+
+            try {
+                steps.httpRequest(
+                        url: callbackUrl,
+                        httpMode: 'POST',
+                        contentType: 'APPLICATION_JSON',
+                        requestBody: JsonOutput.toJson(payload),
+                        validResponseCodes: '200:299'
+                )
+
+                steps.echo "Sent ${orchestratorStatus} callback for executionId ${executionId}"
+            } catch (Exception e) {
+                steps.echo "WARNING: Failed to send ${orchestratorStatus} callback for executionId ${executionId}: ${e.message}"
+            }
+
+        } else {
+            steps.echo "No callbackUrl or executionId found. Skipping final callback."
+        }
     }
 }

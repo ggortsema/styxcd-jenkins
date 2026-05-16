@@ -76,6 +76,9 @@ def call(body) {
 
     def stageWrapper = new org.styxcd.pipeline.stages.StageWrapper(this)
 
+    keyMaps['EXECUTION_ID'] = executionId
+    keyMaps['CALLBACK_URL'] = callbackUrl
+    keyMaps['ORCHESTRATOR_URL'] = orchestratorUrl
     stageWrapper.initializeBuildInformation(featureFlags.getEnabledFlags(), keyMaps)
 
     def normalizeStageName = { String key ->

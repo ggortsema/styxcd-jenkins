@@ -1,6 +1,7 @@
 package org.styxcd.pipeline.stages.stagesimpl
 
 import org.styxcd.pipeline.utility.MetricsUtil
+import groovy.json.JsonOutput
 
 class CloudWorkflowInitialize implements Serializable {
     /**
@@ -24,6 +25,34 @@ class CloudWorkflowInitialize implements Serializable {
     public void runStage(script, params, keyMaps) {
 
         keyMaps['BUILD_STATUS'] = 'SUCCESS'
+
+        def callbackUrl = keyMaps['CALLBACK_URL']
+        def executionId = keyMaps['EXECUTION_ID']
+
+        if (callbackUrl && executionId) {
+            def payload = [
+                    executionId: executionId,
+                    status     : "STARTED",
+                    message    : "Jenkins execution started"
+            ]
+
+            try {
+                steps.httpRequest(
+                        url: callbackUrl,
+                        httpMode: 'POST',
+                        contentType: 'APPLICATION_JSON',
+                        requestBody: JsonOutput.toJson(payload),
+                        validResponseCodes: '200:299'
+                )
+
+                steps.echo "Sent STARTED callback for executionId ${executionId}"
+            } catch (Exception e) {
+                steps.echo "WARNING: Failed to send STARTED callback for executionId ${executionId}: ${e.message}"
+            }
+
+        } else {
+            steps.echo "No callbackUrl or executionId found. Skipping STARTED callback."
+        }
 
         steps.echo "IN INIT INISDE METHOD"
         steps.cleanWs()
