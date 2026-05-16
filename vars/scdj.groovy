@@ -57,7 +57,6 @@ def call(body) {
             httpMode: 'GET',
             validResponseCodes: '200'
     )
-    def rawJson = new URL("${orchestratorUrl}/executions/${executionId}/plan").text
     ralfJson = new groovy.json.JsonSlurperClassic().parseText(response.content)
 
     echo "running this workflow: ${ralfJson}"
