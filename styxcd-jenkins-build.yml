@@ -9,3 +9,16 @@ release:
         repo: https://github.com/ggortsema/styxcd-jenkins.git
         branch: main
         build_tool: gradle
+
+
+workflow: cloud_workflow
+release:
+  name: johnny-platform-release
+  applications:
+    spring:
+      - name: first-app
+        repo: someplace
+        branch: main
+        version: 1.0.0
+        build:
+          type: maven-docker

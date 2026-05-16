@@ -49,6 +49,12 @@ def call(body) {
     //parameters
     def getStage = new org.styxcd.pipeline.stages.StageMap().getMap(this, featureFlags)
     ralfJson = workflow.createJsonStageList(yml, getStage)
+
+    def orchestratorUrl = "http://orchestrator.styxcd.com"
+    def executionId = "855e2c90-8cc8-4148-a2e3-683f047d0178"
+    def rawJson = new URL("${orchestratorUrl}/executions/${executionId}/plan").text
+    ralfJson = new groovy.json.JsonSlurperClassic().parseText(rawJson)
+
     echo "running this workflow: ${ralfJson}"
     def tryMap = [:]
     def finalMap = [:]
