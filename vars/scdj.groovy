@@ -52,8 +52,13 @@ def call(body) {
 
     def orchestratorUrl = "http://orchestrator.styxcd.com"
     def executionId = "855e2c90-8cc8-4148-a2e3-683f047d0178"
+    def response = httpRequest(
+            url: "${orchestratorUrl}/executions/${executionId}/plan",
+            httpMode: 'GET',
+            validResponseCodes: '200'
+    )
     def rawJson = new URL("${orchestratorUrl}/executions/${executionId}/plan").text
-    ralfJson = new groovy.json.JsonSlurperClassic().parseText(rawJson)
+    ralfJson = new groovy.json.JsonSlurperClassic().parseText(response.content)
 
     echo "running this workflow: ${ralfJson}"
     def tryMap = [:]
