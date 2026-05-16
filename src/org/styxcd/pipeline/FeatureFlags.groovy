@@ -2,10 +2,6 @@ package org.styxcd.pipeline
 
 class FeatureFlags implements Serializable {
 
-    /**
-     * test feature flag
-     *
-     */
     public static final String FFTEST = "fftest"
 
     private def flagDetails = [
@@ -14,61 +10,71 @@ class FeatureFlags implements Serializable {
             ]
     ]
 
-    /**
-     * A reference to the pipeline that allows you to run pipeline steps in your shared library
-     */
     def steps
 
-    /**
-     * Constructor
-     *
-     * @param steps a reference to the pipeline that allows you to run pipeline steps in your shared libary
-     * @param flagCsv csv string of flags, probably from an env var
-     * @param flags list of flags to enable
-     */
-    FeatureFlags(steps, String flagCsv, List<String> flags) {
+    FeatureFlags(steps, String flagCsv, Object flags) {
         this.steps = steps
+
         def finalFlags = []
 
         if (flagCsv) {
-            finalFlags = flagCsv.split(',').toList()
+            finalFlags += flagCsv.split(',').toList()
         }
 
-        if (flags) {
-            finalFlags += flags
-        }
+        finalFlags += normalizeFlags(flags)
 
         finalFlags.each {
-            def flag = it.trim().toLowerCase()
-            if (flagDetails.containsKey(flag)) {
+            def flag = it?.toString()?.trim()?.toLowerCase()
+
+            if (flag && flagDetails.containsKey(flag)) {
                 flagDetails[flag].enabled = true
             }
         }
     }
 
-    /**
-     * Returns if a feature flag is enabled
-     *
-     * @param flag name of the feature being queried
-     * @return Boolean indicating if flag is enabled
-     */
+    private List<String> normalizeFlags(Object flags) {
+        def normalizedFlags = []
+
+        if (!flags) {
+            return normalizedFlags
+        }
+
+        if (flags instanceof List) {
+            normalizedFlags += flags
+        } else if (flags instanceof String) {
+            normalizedFlags += flags.split(',').toList()
+        } else if (flags instanceof Map) {
+            flags.each { key, value ->
+                if (value == true) {
+                    normalizedFlags << key
+                }
+            }
+        }
+
+        return normalizedFlags
+    }
+
     public Boolean isEnabled(String flag) {
-        if (flagDetails.containsKey(flag)) {
-            return flagDetails[flag].enabled
+        if (!flag) {
+            return false
+        }
+
+        def normalizedFlag = flag.trim().toLowerCase()
+
+        if (flagDetails.containsKey(normalizedFlag)) {
+            return flagDetails[normalizedFlag].enabled
         }
 
         return false
     }
 
-    /**
-     * Echos all enabled feature flags
-     */
     public void prettyPrint() {
         def message = 'Enabled Feature Flags:\n'
         def printed = false
-        flagDetails.each { k, v ->
-            if (v.enabled) {
-                message += "${k}\n"
+
+        flagDetails.each { key, value ->
+            if (value.enabled) {
+                message += "${key}\n"
                 printed = true
             }
         }
@@ -80,15 +86,12 @@ class FeatureFlags implements Serializable {
         steps.echo(message)
     }
 
-    /**
-     * Returns a list of enabled flags
-     */
     public List<String> getEnabledFlags() {
         def enabledFlags = []
 
-        flagDetails.each { k, v ->
-            if (v.enabled) {
-                enabledFlags << k
+        flagDetails.each { key, value ->
+            if (value.enabled) {
+                enabledFlags << key
             }
         }
 
