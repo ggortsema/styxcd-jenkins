@@ -40,15 +40,19 @@ def call(body) {
     echo "Orchestrator URL: ${orchestratorUrl}"
     echo "Callback URL: ${callbackUrl ?: 'not provided'}"
 
+    def envFeatureFlags = env.STYXCD_FEATURE_FLAGS ?: ""
+    def requestFeatureFlags = styxcdRequest.feature_flags ?: [:]
+
     def featureFlags = new org.styxcd.pipeline.FeatureFlags(
             this,
-            env.STYXCD_FEATURE_FLAGS,
-            styxcdRequest.feature_flags ?: [:]
+            envFeatureFlags,
+            requestFeatureFlags
     )
+
     featureFlags.prettyPrint()
 
     def getStage = new org.styxcd.pipeline.stages.StageMap().getMap(this, featureFlags)
-    
+
     def response = httpRequest(
             url: "${orchestratorUrl}/executions/${executionId}/plan",
             httpMode: 'GET',
