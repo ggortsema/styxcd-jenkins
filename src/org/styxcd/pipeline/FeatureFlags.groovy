@@ -21,7 +21,17 @@ class FeatureFlags implements Serializable {
             finalFlags += flagCsv.split(',').toList()
         }
 
-        finalFlags += normalizeFlags(flags)
+        if (flags instanceof List) {
+            finalFlags += flags
+        } else if (flags instanceof String) {
+            finalFlags += flags.split(',').toList()
+        } else if (flags instanceof Map) {
+            flags.each { key, value ->
+                if (value == true) {
+                    finalFlags << key
+                }
+            }
+        }
 
         finalFlags.each {
             def flag = it?.toString()?.trim()?.toLowerCase()
@@ -30,28 +40,6 @@ class FeatureFlags implements Serializable {
                 flagDetails[flag].enabled = true
             }
         }
-    }
-
-    private List<String> normalizeFlags(Object flags) {
-        def normalizedFlags = []
-
-        if (!flags) {
-            return normalizedFlags
-        }
-
-        if (flags instanceof List) {
-            normalizedFlags += flags
-        } else if (flags instanceof String) {
-            normalizedFlags += flags.split(',').toList()
-        } else if (flags instanceof Map) {
-            flags.each { key, value ->
-                if (value == true) {
-                    normalizedFlags << key
-                }
-            }
-        }
-
-        return normalizedFlags
     }
 
     public Boolean isEnabled(String flag) {
