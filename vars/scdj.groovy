@@ -40,13 +40,15 @@ def call(body) {
     echo "Orchestrator URL: ${orchestratorUrl}"
     echo "Callback URL: ${callbackUrl ?: 'not provided'}"
 
-    def envFeatureFlags = env.STYXCD_FEATURE_FLAGS ?: ""
-    def requestFeatureFlags = styxcdRequest.feature_flags ?: [:]
+    // TODO:
+    // Feature flags were previously derived from YML.
+    // Once orchestrator-driven execution is finalized,
+    // support feature flags from STYXCD_REQUEST and/or execution plan metadata.
 
     def featureFlags = new org.styxcd.pipeline.FeatureFlags(
             this,
-            envFeatureFlags,
-            requestFeatureFlags
+            env.STYXCD_FEATURE_FLAGS ?: "",
+            ""
     )
 
     featureFlags.prettyPrint()
