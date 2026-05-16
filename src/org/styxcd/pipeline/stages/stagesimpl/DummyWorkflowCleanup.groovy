@@ -20,15 +20,6 @@ class DummyWorkflowCleanup implements Serializable {
         metricsUtil = new MetricsUtil(steps)
     }
 
-    public Map getParams(yml, paramMap) {
-        def params = [:]
-        params['stagename'] = 'cleanup'
-        params['label'] = ''
-        params['VALIDATE_MAP'] = paramMap['VALIDATE_MAP']
-        params['YML'] = yml
-        return params
-    }
-
     public void runStage(script, params, keyMaps) {
 
       def startTime = System.currentTimeMillis()

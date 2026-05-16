@@ -8,15 +8,6 @@ class DestroyECSFargateCluster implements Serializable {
         this.steps = steps
     }
 
-    public Map getParams(yml, paramMap) {
-        def params = [:]
-        params['stagename'] = 'destroy ecs fargate cluster'
-        params['label'] = ''
-        params['VALIDATE_MAP'] = paramMap['VALIDATE_MAP']
-        params['YML'] = yml
-        return params
-    }
-
     public void runStage(script, params, keyMaps) {
 
         def awsRegion = 'us-east-1'

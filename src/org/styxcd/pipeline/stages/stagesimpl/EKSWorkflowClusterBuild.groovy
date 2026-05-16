@@ -15,15 +15,6 @@ class EKSWorkflowClusterBuild implements Serializable {
         this.steps = steps
     }
 
-    public Map getParams(yml, paramMap) {
-        def params = [:]
-        params['stagename'] = 'build eks cluster'
-        params['label'] = ''
-        params['VALIDATE_MAP'] = paramMap['VALIDATE_MAP']
-        params['YML'] = yml
-        return params
-    }
-
     public void runStage(script, params, keyMaps) {
 
         def stageMapName = keyMaps["STAGE_MAP_NAME"]

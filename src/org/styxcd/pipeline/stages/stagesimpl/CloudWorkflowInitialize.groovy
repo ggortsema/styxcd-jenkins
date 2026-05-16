@@ -21,15 +21,6 @@ class CloudWorkflowInitialize implements Serializable {
         this.mvnUtil = new org.styxcd.pipeline.utility.MavenUtil(steps, featureFlags)
     }
 
-    public Map getParams(yml, paramMap) {
-        def params = [:]
-        params['stagename'] = 'initialize'
-        params['label'] = ''
-        params['VALIDATE_MAP'] = paramMap['VALIDATE_MAP']
-        params['YML'] = yml
-        return params
-    }
-
     public void runStage(script, params, keyMaps) {
 
         keyMaps['BUILD_STATUS'] = 'SUCCESS'
