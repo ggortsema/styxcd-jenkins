@@ -7,13 +7,12 @@ class StageWrapper implements Serializable {
     def steps
     MetricsUtil metricsUtil
 
-    public StageWrapper(steps) {
+    StageWrapper(steps) {
         this.steps = steps
         this.metricsUtil = new MetricsUtil(steps)
     }
 
     def initializeBuildInformation(enabledFeatureFlags, keyMaps) {
-        // set up a map for splunk messages
         def startTime = System.currentTimeMillis()
 
         def splunkMap = [:]
@@ -25,6 +24,7 @@ class StageWrapper implements Serializable {
         splunkMap["BUILD_START_TIME"] = "${startTime}"
         splunkMap["KHARONCD_VERSION"] = keyMaps['kharoncd_version']
         splunkMap['FEATURE_FLAGS'] = enabledFeatureFlags
+
         keyMaps["SPLUNK_MAP"] = splunkMap
     }
 
@@ -37,75 +37,81 @@ class StageWrapper implements Serializable {
         }
 
         def stageLogic = stageFactory()
-
+        def emitAggregateStageMetrics =
+                params.containsKey('emitAggregateStageMetrics') ? params['emitAggregateStageMetrics'] : true
 
         steps.stage(params['stagename']) {
             steps.node(params['label']) {
 
-
                 def startTime = System.currentTimeMillis()
                 def endTime
-                def count
-                def gnericStageName = key
+                def genericStageName = key
                 def instanceCountMapName = "${key}_INSTANCE_COUNT"
 
-                if (keyMaps[instanceCountMapName]) {
-                    count = keyMaps[instanceCountMapName] + 1
-                    keyMaps[instanceCountMapName] = count
-                } else {
-                    count = 1
-                    keyMaps[instanceCountMapName] = count
-                }
+                def count = keyMaps[instanceCountMapName] ? keyMaps[instanceCountMapName] + 1 : 1
+                keyMaps[instanceCountMapName] = count
 
-                key = "${key}_${count}"
+                def stageInstanceKey = "${key}_${count}"
 
-                steps.echo "IN StageWrapper with key of ${key}"
+                steps.echo "IN StageWrapper with key of ${stageInstanceKey}"
 
-
-                def splunkStageMapName = "SPLUNK_STAGE_" + key
+                def splunkStageMapName = "SPLUNK_STAGE_" + stageInstanceKey
                 def stageSpecificMap = [:]
-                stageSpecificMap["STAGE_NAME"] = key
-                stageSpecificMap["GENERIC_STAGE_NAME"] = gnericStageName
 
-
-                keyMaps[splunkStageMapName] = stageSpecificMap
-                keyMaps["STAGE_MAP_NAME"] = splunkStageMapName
+                stageSpecificMap["STAGE_NAME"] = stageInstanceKey
+                stageSpecificMap["GENERIC_STAGE_NAME"] = genericStageName
                 stageSpecificMap["NODE_NAME"] = "${steps.env.NODE_NAME}"
                 stageSpecificMap["NODE_LABELS"] = "${steps.env.NODE_LABELS}"
 
+                keyMaps[splunkStageMapName] = stageSpecificMap
+                keyMaps["STAGE_MAP_NAME"] = splunkStageMapName
+
                 steps.echo "STAGE_MAP_NAME is ${splunkStageMapName}"
+
                 def splunkMap = keyMaps["SPLUNK_MAP"]
                 if (splunkMap) {
                     stageSpecificMap["BUILD_TAG"] = splunkMap["BUILD_TAG"]
                     stageSpecificMap["START_TIME"] = startTime
                 }
 
-                metricsUtil.addStageToSplunkMap(steps, "${key}", startTime, null, keyMaps)
+                if (emitAggregateStageMetrics) {
+                    metricsUtil.addStageToSplunkMap(steps, stageInstanceKey, startTime, null, keyMaps)
+                }
 
                 try {
                     stageLogic.runStage(steps, params, keyMaps)
                 } catch (e) {
 
-                    steps.echo "Error during processing of stage ${gnericStageName} caused by ${e.message}"
+                    steps.echo "Error during processing of stage ${genericStageName} caused by ${e.message}"
 
                     endTime = System.currentTimeMillis()
+
                     stageSpecificMap["END_TIME"] = endTime
                     stageSpecificMap["ELAPSED_TIME"] = endTime - startTime
                     stageSpecificMap["STAGE_RESULT"] = 'FAILURE'
                     stageSpecificMap["STAGE_FAILURE_MESSAGE"] = e.message
+
                     keyMaps['BUILD_STATUS'] = 'FAILURE'
                     keyMaps['BUILD_FAILURE_MESSAGE'] = e.message
+
+                    if (emitAggregateStageMetrics) {
+                        metricsUtil.addStageToSplunkMap(steps, stageInstanceKey, startTime, endTime, keyMaps)
+                    }
+
                     throw e
+                } finally {
+                    keyMaps["STAGE_MAP_NAME"] = null
                 }
 
                 endTime = System.currentTimeMillis()
+
                 stageSpecificMap["END_TIME"] = endTime
                 stageSpecificMap["ELAPSED_TIME"] = endTime - startTime
                 stageSpecificMap["STAGE_RESULT"] = 'SUCCESS'
 
-                metricsUtil.addStageToSplunkMap(steps, "${key}", startTime, endTime, keyMaps)
-
-                keyMaps["STAGE_MAP_NAME"] = null
+                if (emitAggregateStageMetrics) {
+                    metricsUtil.addStageToSplunkMap(steps, stageInstanceKey, startTime, endTime, keyMaps)
+                }
             }
         }
     }
