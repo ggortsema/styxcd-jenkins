@@ -15,17 +15,18 @@ class StageWrapper implements Serializable {
     def initializeBuildInformation(enabledFeatureFlags, keyMaps) {
         def startTime = System.currentTimeMillis()
 
-        def splunkMap = [:]
-        splunkMap["BUILD_TAG"] = "${steps.env.BUILD_TAG}"
-        splunkMap["JOB_NAME"] = "${steps.env.JOB_NAME}"
-        splunkMap["BUILD_ID"] = "${steps.env.BUILD_ID}"
-        splunkMap["JOB_URL"] = "${steps.env.JOB_URL}"
-        splunkMap["BUILD_USER_ID"] = "${steps.env.BUILD_USER_ID}"
-        splunkMap["BUILD_START_TIME"] = "${startTime}"
-        splunkMap["KHARONCD_VERSION"] = keyMaps['kharoncd_version']
-        splunkMap['FEATURE_FLAGS'] = enabledFeatureFlags
+        def buildMap = [:]
+        buildMap["BUILD_TAG"] = "${steps.env.BUILD_TAG}"
+        buildMap["JOB_NAME"] = "${steps.env.JOB_NAME}"
+        buildMap["BUILD_ID"] = "${steps.env.BUILD_ID}"
+        buildMap["JOB_URL"] = "${steps.env.JOB_URL}"
+        buildMap["BUILD_USER_ID"] = "${steps.env.BUILD_USER_ID}"
+        buildMap["BUILD_START_TIME"] = "${startTime}"
+        buildMap["KHARONCD_VERSION"] = keyMaps['kharoncd_version']
+        buildMap['FEATURE_FLAGS'] = enabledFeatureFlags
 
-        keyMaps["SPLUNK_MAP"] = splunkMap
+        keyMaps["BUILD_MAP"] = buildMap
+        keyMaps["FEATURE_FLAGS"] = enabledFeatureFlags
     }
 
     def run(params, keyMaps, Map getStage, key) {
@@ -37,45 +38,52 @@ class StageWrapper implements Serializable {
         }
 
         def stageLogic = stageFactory()
-        def emitAggregateStageMetrics =
-                params.containsKey('emitAggregateStageMetrics') ? params['emitAggregateStageMetrics'] : true
+
+        def emitStageEvents =
+                params.containsKey('emitStageEvents') ? params['emitStageEvents'] : true
 
         steps.stage(params['stagename']) {
             steps.node(params['label']) {
 
-                def startTime = System.currentTimeMillis()
-                def endTime
-                def genericStageName = key
-                def instanceCountMapName = "${key}_INSTANCE_COUNT"
+                Long startTime = System.currentTimeMillis()
+                Long endTime
+                String genericStageName = key
+                String instanceCountMapName = "${key}_INSTANCE_COUNT"
 
-                def count = keyMaps[instanceCountMapName] ? keyMaps[instanceCountMapName] + 1 : 1
+                Integer count = keyMaps[instanceCountMapName] ? keyMaps[instanceCountMapName] + 1 : 1
                 keyMaps[instanceCountMapName] = count
 
-                def stageInstanceKey = "${key}_${count}"
+                String stageInstanceKey = "${key}_${count}"
+                String stageMapName = "STAGE_" + stageInstanceKey
 
-                steps.echo "IN StageWrapper with key of ${stageInstanceKey}"
+                steps.echo "StageWrapper - running stage key ${stageInstanceKey}"
 
-                def splunkStageMapName = "SPLUNK_STAGE_" + stageInstanceKey
-                def stageSpecificMap = [:]
-
+                Map stageSpecificMap = [:]
                 stageSpecificMap["STAGE_NAME"] = stageInstanceKey
                 stageSpecificMap["GENERIC_STAGE_NAME"] = genericStageName
                 stageSpecificMap["NODE_NAME"] = "${steps.env.NODE_NAME}"
                 stageSpecificMap["NODE_LABELS"] = "${steps.env.NODE_LABELS}"
+                stageSpecificMap["START_TIME"] = startTime
 
-                keyMaps[splunkStageMapName] = stageSpecificMap
-                keyMaps["STAGE_MAP_NAME"] = splunkStageMapName
+                keyMaps[stageMapName] = stageSpecificMap
+                keyMaps["STAGE_MAP_NAME"] = stageMapName
 
-                steps.echo "STAGE_MAP_NAME is ${splunkStageMapName}"
+                if (emitStageEvents) {
+                    Map startedEvent = metricsUtil.buildStageEvent(
+                            "STAGE_STARTED",
+                            "STARTED",
+                            "Stage started",
+                            params,
+                            keyMaps,
+                            stageInstanceKey,
+                            key,
+                            params['stagename'] as String,
+                            genericStageName,
+                            count,
+                            startTime
+                    )
 
-                def splunkMap = keyMaps["SPLUNK_MAP"]
-                if (splunkMap) {
-                    stageSpecificMap["BUILD_TAG"] = splunkMap["BUILD_TAG"]
-                    stageSpecificMap["START_TIME"] = startTime
-                }
-
-                if (emitAggregateStageMetrics) {
-                    metricsUtil.addStageToSplunkMap(steps, stageInstanceKey, startTime, null, keyMaps)
+                    metricsUtil.emitStageEvent(startedEvent, keyMaps)
                 }
 
                 try {
@@ -94,8 +102,24 @@ class StageWrapper implements Serializable {
                     keyMaps['BUILD_STATUS'] = 'FAILURE'
                     keyMaps['BUILD_FAILURE_MESSAGE'] = e.message
 
-                    if (emitAggregateStageMetrics) {
-                        metricsUtil.addStageToSplunkMap(steps, stageInstanceKey, startTime, endTime, keyMaps)
+                    if (emitStageEvents) {
+                        Map failedEvent = metricsUtil.buildStageEvent(
+                                "STAGE_FAILED",
+                                "FAILED",
+                                "Stage failed",
+                                params,
+                                keyMaps,
+                                stageInstanceKey,
+                                key,
+                                params['stagename'] as String,
+                                genericStageName,
+                                count,
+                                startTime,
+                                endTime,
+                                e
+                        )
+
+                        metricsUtil.emitStageEvent(failedEvent, keyMaps)
                     }
 
                     throw e
@@ -109,8 +133,23 @@ class StageWrapper implements Serializable {
                 stageSpecificMap["ELAPSED_TIME"] = endTime - startTime
                 stageSpecificMap["STAGE_RESULT"] = 'SUCCESS'
 
-                if (emitAggregateStageMetrics) {
-                    metricsUtil.addStageToSplunkMap(steps, stageInstanceKey, startTime, endTime, keyMaps)
+                if (emitStageEvents) {
+                    Map succeededEvent = metricsUtil.buildStageEvent(
+                            "STAGE_SUCCEEDED",
+                            "SUCCEEDED",
+                            "Stage succeeded",
+                            params,
+                            keyMaps,
+                            stageInstanceKey,
+                            key,
+                            params['stagename'] as String,
+                            genericStageName,
+                            count,
+                            startTime,
+                            endTime
+                    )
+
+                    metricsUtil.emitStageEvent(succeededEvent, keyMaps)
                 }
             }
         }
