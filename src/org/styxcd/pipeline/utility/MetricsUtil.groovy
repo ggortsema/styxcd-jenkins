@@ -198,25 +198,32 @@ class MetricsUtil implements Serializable {
     }
 
     private Object valueFrom(Map params, Map keyMaps, String primaryKey, String fallbackKey = null) {
-        if (params?.containsKey(primaryKey)) {
-            return params[primaryKey]
-        }
+        List keysToTry = [primaryKey]
 
-        if (keyMaps?.containsKey(primaryKey)) {
-            return keyMaps[primaryKey]
-        }
+        keysToTry.add(toUpperSnake(primaryKey))
 
         if (fallbackKey) {
-            if (params?.containsKey(fallbackKey)) {
-                return params[fallbackKey]
+            keysToTry.add(fallbackKey)
+            keysToTry.add(toUpperSnake(fallbackKey))
+        }
+
+        for (String key : keysToTry) {
+            if (params?.containsKey(key)) {
+                return params[key]
             }
 
-            if (keyMaps?.containsKey(fallbackKey)) {
-                return keyMaps[fallbackKey]
+            if (keyMaps?.containsKey(key)) {
+                return keyMaps[key]
             }
         }
 
         return null
+    }
+
+    private String toUpperSnake(String camelCase) {
+        return camelCase
+                .replaceAll(/([a-z])([A-Z])/, '$1_$2')
+                .toUpperCase()
     }
 
     private String isoNow() {
