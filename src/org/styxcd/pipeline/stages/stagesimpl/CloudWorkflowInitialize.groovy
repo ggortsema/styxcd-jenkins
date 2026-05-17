@@ -1,28 +1,18 @@
 package org.styxcd.pipeline.stages.stagesimpl
 
-import org.styxcd.pipeline.utility.MetricsUtil
 import groovy.json.JsonOutput
 
 class CloudWorkflowInitialize implements Serializable {
-    /**
-     * a reference to the pipeline that allows you to run pipeline steps in your shared libary
-     */
+
     def steps
-    MetricsUtil metricsUtil
     def mvnUtil
 
-    /**
-     * Constructor
-     *
-     * @param steps a reference to the pipeline that allows you to run pipeline steps in your shared libary
-     */
-    public CloudWorkflowInitialize(steps, featureFlags) {
+    CloudWorkflowInitialize(steps, featureFlags) {
         this.steps = steps
-        this.metricsUtil = new org.styxcd.pipeline.utility.MetricsUtil(steps)
         this.mvnUtil = new org.styxcd.pipeline.utility.MavenUtil(steps, featureFlags)
     }
 
-    public void runStage(script, params, keyMaps) {
+    void runStage(script, params, keyMaps) {
 
         keyMaps['BUILD_STATUS'] = 'SUCCESS'
 
@@ -54,13 +44,8 @@ class CloudWorkflowInitialize implements Serializable {
             steps.echo "No callbackUrl or executionId found. Skipping STARTED callback."
         }
 
-        steps.echo "IN INIT INISDE METHOD"
+        steps.echo "IN INIT INSIDE METHOD"
         steps.cleanWs()
-
-        def startTime = System.currentTimeMillis()
-
-        metricsUtil.addStageToSplunkMap(script, "CloudWorkflowInitialize*", startTime, null, keyMaps)
-        steps.echo "out of metrics util in init"
 
         params.each { entry ->
             steps.echo "Key: ${entry.key} Value: ${entry.value}"
@@ -68,6 +53,7 @@ class CloudWorkflowInitialize implements Serializable {
 
         def validateMap = params['VALIDATE_MAP']
         def yml = params['YML']
+
         steps.echo "here is yml"
         steps.echo "${yml}"
 
@@ -83,8 +69,5 @@ class CloudWorkflowInitialize implements Serializable {
             steps.stash includes: '**', name: "${it.name}-pre-workspace", useDefaultExcludes: false
             steps.stash includes: '**', name: "${it.name}-workspace"
         }
-
-        def endTime = System.currentTimeMillis()
-        metricsUtil.addStageToSplunkMap(script, "CloudWorkflowInitialize*", startTime, endTime, keyMaps)
     }
 }
