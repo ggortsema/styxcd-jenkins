@@ -5,11 +5,9 @@ def call(body) {
     def config
 
 
-    //node('styxcd-agent') {
-        def configString = libraryResource "config.yml"
-        config = readYaml text: configString
-        echo "Current version: ${config.styxcd_jenkins.version}"
-    //}
+    def configString = libraryResource "config.yml"
+    config = readYaml text: configString
+    echo "Current version: ${config.styxcd_jenkins.version}"
 
     body.resolveStrategy = Closure.DELEGATE_FIRST
     body.delegate = pipelineParams

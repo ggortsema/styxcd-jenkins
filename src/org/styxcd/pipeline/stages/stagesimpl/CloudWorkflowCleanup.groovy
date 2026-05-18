@@ -15,9 +15,6 @@ class CloudWorkflowCleanup implements Serializable {
         params.each { entry ->
             steps.echo "Key: ${entry.key} Value: ${entry.value}"
         }
-
-        def yml = params['YML']
-
         steps.echo "in cloud workflow cleanup stage"
 
         def callbackUrl = keyMaps['CALLBACK_URL']

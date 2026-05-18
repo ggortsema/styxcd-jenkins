@@ -1,0 +1,53 @@
+workflow: cloud_workflow
+
+release:
+  name: johnny-platform-release
+  version: 1.0.0
+
+  desired_state:
+    environment: present
+    applications: deployed
+
+  applications:
+    spring:
+      - name: first-app
+        repo: someplace
+        branch: main
+        version: 1.0.0
+
+        build:
+          type: maven-docker
+          project_path: .
+          dockerfile: Dockerfile
+          artifact_target: ecr
+
+        runtime:
+          container_port: 8080
+          health_check_path: /actuator/health
+
+    node:
+      - name: first-node-app
+        repo: someplace
+        branch: main
+        version: 1.0.0
+
+        build:
+          type: docker
+          project_path: .
+          dockerfile: Dockerfile
+          artifact_target: ecr
+
+        runtime:
+          container_port: 80
+          health_check_path: /
+
+  environments:
+    dev:
+      - name: dev-b
+        platform: ecs
+        infrastructure:
+          provider: terraform
+          action: plan
+        location: us-east-2
+        deployment_repo: someplace
+        branch: main

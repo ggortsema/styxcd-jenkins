@@ -1,88 +1,74 @@
 package org.styxcd.pipeline.stages.stagesimpl
 
 class GradleBuild implements Serializable {
-    /**
-     * a reference to the pipeline that allows you to run pipeline steps in your shared libary
-     */
+
     def steps
 
-    /**
-     * Constructor
-     *
-     * @param steps a reference to the pipeline that allows you to run pipeline steps in your shared libary
-     */
-    public GradleBuild(steps, featureFlags) {
+    GradleBuild(steps, featureFlags) {
         this.steps = steps
     }
 
-    public void runStage(script, params, keyMaps) {
+    void runStage(script, params, keyMaps) {
 
         def stageMapName = keyMaps["STAGE_MAP_NAME"]
         def stageSpecificMap = keyMaps[stageMapName]
-        stageSpecificMap['TEST_VALUE'] = "IT WORKED"
 
+        def appName = params["appName"] ?: params["appHostName"]
+        def repo = params["repo"]
+        def branch = params["branch"]
+        def buildCommand = params["buildCommand"] ?: "./gradlew clean test"
 
-        params.each { entry ->
-            steps.echo "Key: ${entry.key} Value: ${entry.value}"
-        }
+        def preWorkspaceStashName =
+                params["preWorkspaceStashName"] ?: "${appName}-pre-workspace"
 
-        def yml = params['YML']
-        steps.echo "here is yml"
-        steps.echo "${yml}"
+        def workspaceStashName =
+                params["workspaceStashName"] ?: "${appName}-workspace"
 
         steps.echo "in gradle build stage"
+        steps.echo "appName: ${appName}"
+        steps.echo "repo: ${repo}"
+        steps.echo "branch: ${branch}"
+        steps.echo "buildCommand: ${buildCommand}"
 
-        yml.release.applications.spring.each {
+        steps.deleteDir()
 
-            if (it?.name == params['appHostName']) {
-                steps.deleteDir()
+        stageSpecificMap["GIT_REPO"] = repo
+        stageSpecificMap["GIT_BRANCH"] = branch
 
-                //stage specific splunk information
-                stageSpecificMap["GIT_REPO"] = keyMaps."${params['appHostName']}".'repo'
-                stageSpecificMap["GIT_BRANCH"] = keyMaps."${params['appHostName']}".'branch'
+        steps.unstash preWorkspaceStashName
 
-                steps.echo "repo: " + stageSpecificMap["GIT_REPO"]
-                steps.echo "branch: " + stageSpecificMap["GIT_BRANCH"]
+        def testStatus = steps.sh(
+                script: buildCommand,
+                returnStatus: true
+        )
 
-                steps.unstash "${it.name}-pre-workspace"
+        steps.junit(
+                testResults: 'build/test-results/test/*.xml',
+                allowEmptyResults: false
+        )
 
-                def keyMap = keyMaps[it.name]
+        steps.publishHTML([
+                allowMissing         : false,
+                alwaysLinkToLastBuild: true,
+                keepAll              : true,
+                reportDir            : 'build/reports/tests/test',
+                reportFiles          : 'index.html',
+                reportName           : 'Gradle Test Report'
+        ])
 
-                def testStatus = steps.sh(
-                        script: './gradlew clean test',
-                        returnStatus: true
-                )
+        steps.publishHTML([
+                allowMissing         : false,
+                alwaysLinkToLastBuild: true,
+                keepAll              : true,
+                reportDir            : 'build/spock-reports',
+                reportFiles          : 'index.html',
+                reportName           : 'Spock Test Report'
+        ])
 
-                steps.junit(
-                        testResults: 'build/test-results/test/*.xml',
-                        allowEmptyResults: false
-                )
-
-                steps.publishHTML([
-                        allowMissing         : false,
-                        alwaysLinkToLastBuild: true,
-                        keepAll              : true,
-                        reportDir            : 'build/reports/tests/test',
-                        reportFiles          : 'index.html',
-                        reportName           : 'Gradle Test Report'
-                ])
-
-                steps.publishHTML([
-                        allowMissing         : false,
-                        alwaysLinkToLastBuild: true,
-                        keepAll              : true,
-                        reportDir            : 'build/spock-reports',
-                        reportFiles          : 'index.html',
-                        reportName           : 'Spock Test Report'
-                ])
-
-                if (testStatus != 0) {
-                    steps.error "Shared library tests failed with status: ${testStatus}"
-                }
-
-                steps.stash includes: '**', name: "${it.name}-workspace"
-
-            }
+        if (testStatus != 0) {
+            steps.error "Gradle build failed for ${appName} with status: ${testStatus}"
         }
+
+        steps.stash includes: '**', name: workspaceStashName
     }
 }
