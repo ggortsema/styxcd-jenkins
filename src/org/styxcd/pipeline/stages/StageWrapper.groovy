@@ -32,20 +32,13 @@ class StageWrapper implements Serializable {
     def run(params, keyMaps, Map getStage, key) {
 
         String executionStageKey = key as String
+        String stageLookupKey = resolveStageLookupKey(executionStageKey)
 
-        String genericStageKey =
-                executionStageKey.contains(":") ?
-                        executionStageKey.substring(
-                                0,
-                                executionStageKey.indexOf(":")
-                        ) :
-                        executionStageKey
-
-        def stageFactory = getStage[genericStageKey]
+        def stageFactory = getStage[stageLookupKey]
 
         if (stageFactory == null) {
             steps.error(
-                    "No stage registered for key: ${genericStageKey}. " +
+                    "No stage registered for key: ${stageLookupKey}. " +
                             "Original execution key: ${executionStageKey}"
             )
         }
@@ -60,8 +53,8 @@ class StageWrapper implements Serializable {
 
                 Long startTime = System.currentTimeMillis()
                 Long endTime
-                String genericStageName = genericStageKey
-                String instanceCountMapName = "${genericStageKey}_INSTANCE_COUNT"
+                String genericStageName = stageLookupKey
+                String instanceCountMapName = "${stageLookupKey}_INSTANCE_COUNT"
 
                 Integer count =
                         keyMaps[instanceCountMapName] ?
@@ -70,11 +63,11 @@ class StageWrapper implements Serializable {
 
                 keyMaps[instanceCountMapName] = count
 
-                String stageInstanceKey = "${genericStageKey}_${count}"
+                String stageInstanceKey = "${stageLookupKey}_${count}"
                 String stageMapName = "STAGE_" + stageInstanceKey
 
                 steps.echo "StageWrapper - execution key ${executionStageKey}"
-                steps.echo "StageWrapper - generic stage key ${genericStageKey}"
+                steps.echo "StageWrapper - stage lookup key ${stageLookupKey}"
                 steps.echo "StageWrapper - running stage instance ${stageInstanceKey}"
 
                 Map stageSpecificMap = [:]
@@ -173,5 +166,16 @@ class StageWrapper implements Serializable {
                 }
             }
         }
+    }
+
+    private String resolveStageLookupKey(String executionStageKey) {
+
+        def parts = executionStageKey.tokenize(":")
+
+        if (parts.size() <= 2) {
+            return executionStageKey
+        }
+
+        return "${parts[0]}:${parts[1]}"
     }
 }
