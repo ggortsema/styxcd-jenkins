@@ -31,10 +31,23 @@ class StageWrapper implements Serializable {
 
     def run(params, keyMaps, Map getStage, key) {
 
-        def stageFactory = getStage[key]
+        String executionStageKey = key as String
+
+        String genericStageKey =
+                executionStageKey.contains(":") ?
+                        executionStageKey.substring(
+                                0,
+                                executionStageKey.indexOf(":")
+                        ) :
+                        executionStageKey
+
+        def stageFactory = getStage[genericStageKey]
 
         if (stageFactory == null) {
-            throw new RuntimeException("No stage registered for key: ${key}")
+            steps.error(
+                    "No stage registered for key: ${genericStageKey}. " +
+                            "Original execution key: ${executionStageKey}"
+            )
         }
 
         def stageLogic = stageFactory()
@@ -47,19 +60,26 @@ class StageWrapper implements Serializable {
 
                 Long startTime = System.currentTimeMillis()
                 Long endTime
-                String genericStageName = key
-                String instanceCountMapName = "${key}_INSTANCE_COUNT"
+                String genericStageName = genericStageKey
+                String instanceCountMapName = "${genericStageKey}_INSTANCE_COUNT"
 
-                Integer count = keyMaps[instanceCountMapName] ? keyMaps[instanceCountMapName] + 1 : 1
+                Integer count =
+                        keyMaps[instanceCountMapName] ?
+                                keyMaps[instanceCountMapName] + 1 :
+                                1
+
                 keyMaps[instanceCountMapName] = count
 
-                String stageInstanceKey = "${key}_${count}"
+                String stageInstanceKey = "${genericStageKey}_${count}"
                 String stageMapName = "STAGE_" + stageInstanceKey
 
-                steps.echo "StageWrapper - running stage key ${stageInstanceKey}"
+                steps.echo "StageWrapper - execution key ${executionStageKey}"
+                steps.echo "StageWrapper - generic stage key ${genericStageKey}"
+                steps.echo "StageWrapper - running stage instance ${stageInstanceKey}"
 
                 Map stageSpecificMap = [:]
                 stageSpecificMap["STAGE_NAME"] = stageInstanceKey
+                stageSpecificMap["EXECUTION_STAGE_KEY"] = executionStageKey
                 stageSpecificMap["GENERIC_STAGE_NAME"] = genericStageName
                 stageSpecificMap["NODE_NAME"] = "${steps.env.NODE_NAME}"
                 stageSpecificMap["NODE_LABELS"] = "${steps.env.NODE_LABELS}"
@@ -76,7 +96,7 @@ class StageWrapper implements Serializable {
                             params,
                             keyMaps,
                             stageInstanceKey,
-                            key,
+                            executionStageKey,
                             params['stagename'] as String,
                             genericStageName,
                             count,
@@ -110,7 +130,7 @@ class StageWrapper implements Serializable {
                                 params,
                                 keyMaps,
                                 stageInstanceKey,
-                                key,
+                                executionStageKey,
                                 params['stagename'] as String,
                                 genericStageName,
                                 count,
@@ -141,7 +161,7 @@ class StageWrapper implements Serializable {
                             params,
                             keyMaps,
                             stageInstanceKey,
-                            key,
+                            executionStageKey,
                             params['stagename'] as String,
                             genericStageName,
                             count,
