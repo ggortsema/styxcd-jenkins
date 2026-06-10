@@ -29,9 +29,9 @@ class GradleBuild implements Serializable {
             steps.error "Gradle build stage requires appName or appHostName"
         }
 
-        if (!repo) {
-            steps.error "Gradle build stage requires repo for ${appName}"
-        }
+//        if (!repo) {
+//            steps.error "Gradle build stage requires repo for ${appName}"
+//        }
 
         def preWorkspaceStashName =
                 params["preWorkspaceStashName"] ?:
