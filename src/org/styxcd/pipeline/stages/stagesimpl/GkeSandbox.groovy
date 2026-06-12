@@ -10,6 +10,12 @@ class GkeSandbox implements Serializable {
 
     void runStage(script, params, keyMaps) {
 
+        def clusterName = "styxcd-sandbox-gke"
+        def projectId = "styxcd-sandbox-grant"
+        def clusterLocation = "us-east1-b"
+        def namespace = "johnny-johnny"
+        def credentialsId = "gcp-service-account"
+
         def stageMapName = keyMaps["STAGE_MAP_NAME"]
         def stageSpecificMap = keyMaps[stageMapName]
 
@@ -23,25 +29,14 @@ class GkeSandbox implements Serializable {
         def gcloudConfig = "${steps.env.WORKSPACE}/.gcloud"
         def kubeConfig = "${steps.env.WORKSPACE}/.kube/config"
 
-        def mkdirGcloudResult = steps.sh(
-                script: "mkdir -p ${gcloudConfig}",
-                returnStdout: true
-        ).trim()
-
-        steps.echo("mkdirGcloudResult: ${mkdirGcloudResult}")
-
-        def mkdirKubeResult = steps.sh(
-                script: "mkdir -p ${steps.env.WORKSPACE}/.kube",
-                returnStdout: true
-        ).trim()
-
-        steps.echo("mkdirKubeResult: ${mkdirKubeResult}")
+        steps.sh(script: "mkdir -p ${gcloudConfig}", returnStdout: true).trim()
+        steps.sh(script: "mkdir -p ${steps.env.WORKSPACE}/.kube", returnStdout: true).trim()
 
         def authResult = null
         def credentialsResult = null
 
         steps.withCredentials([
-                [$class: 'FileBinding', credentialsId: 'gcp-service-account', variable: 'GCP_KEY_FILE']
+                [$class: 'FileBinding', credentialsId: credentialsId, variable: 'GCP_KEY_FILE']
         ]) {
 
             authResult = steps.sh(
@@ -52,7 +47,7 @@ class GkeSandbox implements Serializable {
             steps.echo("authResult: ${authResult}")
 
             credentialsResult = steps.sh(
-                    script: "CLOUDSDK_CONFIG=${gcloudConfig} KUBECONFIG=${kubeConfig} gcloud container clusters get-credentials styxcd-sandbox-gke --zone us-east1-b --project styxcd-sandbox-grant",
+                    script: "CLOUDSDK_CONFIG=${gcloudConfig} KUBECONFIG=${kubeConfig} gcloud container clusters get-credentials ${clusterName} --zone ${clusterLocation} --project ${projectId}",
                     returnStdout: true
             ).trim()
 
@@ -68,7 +63,7 @@ class GkeSandbox implements Serializable {
         steps.echo(nodesResult)
 
         def namespaceCheckResult = steps.sh(
-                script: "kubectl --kubeconfig=${kubeConfig} get namespace johnny-johnny --ignore-not-found",
+                script: "kubectl --kubeconfig=${kubeConfig} get namespace ${namespace} --ignore-not-found",
                 returnStdout: true
         ).trim()
 
@@ -76,9 +71,8 @@ class GkeSandbox implements Serializable {
         steps.echo(namespaceCheckResult)
 
         if (!namespaceCheckResult) {
-
             def namespaceCreateResult = steps.sh(
-                    script: "kubectl --kubeconfig=${kubeConfig} create namespace johnny-johnny",
+                    script: "kubectl --kubeconfig=${kubeConfig} create namespace ${namespace}",
                     returnStdout: true
             ).trim()
 
@@ -87,10 +81,11 @@ class GkeSandbox implements Serializable {
         }
 
         def namespaceVerifyResult = steps.sh(
-                script: "kubectl --kubeconfig=${kubeConfig} get namespace johnny-johnny",
+                script: "kubectl --kubeconfig=${kubeConfig} get namespace ${namespace}",
                 returnStdout: true
         ).trim()
 
-        steps.echo("namespaceVerifyResult:" +  namespaceVerifyResult)
+        steps.echo("namespaceVerifyResult:")
+        steps.echo(namespaceVerifyResult)
     }
 }
