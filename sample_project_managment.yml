@@ -1,0 +1,51 @@
+workflow: pm_workflow
+
+provider:
+  type: github
+  repository: ggortsema/styxcd-docs
+  project: mycroftai engineering roadmap
+  jenkins_creds: mycred
+
+epics:
+  - name: epic 1
+    description: "blah blah blah"
+    issues:
+      - name: issue 1
+        description: "blah blah blah"
+        labels:
+          - label 1
+          - label 2
+        assignees:
+          - user 1
+          - user 2
+        milestone: milestone 1
+      - name: issue 2
+        description: "blah blah blah"
+        labels:
+          - label 1
+          - label 2
+        assignees:
+          - user 1
+          - user 2
+        milestone: milestone 1
+  - name: epic 2
+    description: "blah blah blah"
+    issues:
+      - name: issue 3
+        description: "blah blah blah"
+        labels:
+          - label 1
+          - label 2
+        assignees:
+          - user 1
+          - user 2
+      - name: issue 4
+        description: "blah blah blah"
+        labels:
+          - label 1
+          - label 2
+        assignees:
+          - user 1
+          - user 2
+
+

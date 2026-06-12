@@ -19,5 +19,13 @@ class GkeSandbox implements Serializable {
         }
 
         steps.echo "IN GKE SANDBOX STAGE"
+
+        withCredentials([file(credentialsId: 'gcp-service-account', variable: 'GCP_KEY_FILE')]) {
+            sh '''
+        gcloud auth activate-service-account --key-file="$GCP_KEY_FILE"
+        gcloud config set project styxcd-sandbox-grant
+        gcloud container clusters list
+    '''
+        }
     }
 }
