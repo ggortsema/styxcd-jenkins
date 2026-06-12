@@ -52,7 +52,7 @@ class GkeSandbox implements Serializable {
             steps.echo("authResult: ${authResult}")
 
             credentialsResult = steps.sh(
-                    script: "CLOUDSDK_CONFIG=${gcloudConfig} KUBECONFIG=${kubeConfig} gcloud container clusters get-credentials styxcd-sandbox-gke --region us-central1 --project styxcd-sandbox-grant",
+                    script: "CLOUDSDK_CONFIG=${gcloudConfig} KUBECONFIG=${kubeConfig} gcloud container clusters get-credentials styxcd-sandbox-gke --region --zone us-east1-b --project styxcd-sandbox-grant",
                     returnStdout: true
             ).trim()
 
