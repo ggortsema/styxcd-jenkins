@@ -67,12 +67,30 @@ class GkeSandbox implements Serializable {
         steps.echo("nodesResult:")
         steps.echo(nodesResult)
 
-        def namespaceResult = steps.sh(
-                script: "kubectl --kubeconfig=${kubeConfig} create namespace johnny-johnny --dry-run=client -o yaml | kubectl --kubeconfig=${kubeConfig} apply -f -",
+        def namespaceCheckResult = steps.sh(
+                script: "kubectl --kubeconfig=${kubeConfig} get namespace johnny-johnny --ignore-not-found",
                 returnStdout: true
         ).trim()
 
-        steps.echo("namespaceResult:")
-        steps.echo(namespaceResult)
+        steps.echo("namespaceCheckResult:")
+        steps.echo(namespaceCheckResult)
+
+        if (!namespaceCheckResult) {
+
+            def namespaceCreateResult = steps.sh(
+                    script: "kubectl --kubeconfig=${kubeConfig} create namespace johnny-johnny",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo("namespaceCreateResult:")
+            steps.echo(namespaceCreateResult)
+        }
+
+        def namespaceVerifyResult = steps.sh(
+                script: "kubectl --kubeconfig=${kubeConfig} get namespace johnny-johnny",
+                returnStdout: true
+        ).trim()
+
+        steps.echo("namespaceVerifyResult:" +  namespaceVerifyResult)
     }
 }
