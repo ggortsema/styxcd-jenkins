@@ -152,7 +152,7 @@ ${secrets.collect { envName, secretConfig -> """            - name: ${envName}
                 secretKeyRef:
                   name: ${secretName}
                   key: ${envName}""" }.join('\n')}
-""".stripIndent()
+"""
         }
 
         def manifest = """
