@@ -33,8 +33,130 @@ class GkeCreateIngress implements Serializable {
 
         steps.echo "------------------------"
 
-
         steps.echo "Running ${this.class.simpleName}"
+
+        //TODO remove this parsing bridge later and get values directly from orchestrator
+        yml.release?.environments?."${params['LIFECYCLE']}"?.each { target ->
+            if(target?.name == params['TARGET_NAME']) {
+
+                params['CLUSTER_NAME'] = target?.platform?.cluster_name
+                params['PROJECT_ID'] = target?.platform?.project_id
+                params['LOCATION'] = target?.platform?.location
+                params['LOCATION_TYPE'] = target?.platform?.location_type
+                params['NAMESPACE'] = target?.platform?.namespace
+                params['CREDENTIALS_ID'] = target?.platform?.credentials?.id
+                params['INGRESS_ENABLED'] = target?.platform?.ingress?.enabled
+                params['INGRESS_NAME'] = target?.platform?.ingress?.name
+                params['INGRESS_HOST'] = target?.platform?.ingress?.host
+                params['INGRESS_CLASS_NAME'] = target?.platform?.ingress?.class_name
+
+                def routesList = []
+                target?.platform?.ingress?.routes?.each { route ->
+                    routesList << [
+                            path    : route?.path,
+                            pathType: route?.path_type,
+                            service : route?.service,
+                            port    : route?.port
+                    ]
+                }
+                params['INGRESS_ROUTES'] = routesList
+
+            }
+        }
+
+        def clusterName = params['CLUSTER_NAME']
+        def projectId = params['PROJECT_ID']
+        def location = params['LOCATION']
+        def locationType = params['LOCATION_TYPE']
+        def namespace = params['NAMESPACE']
+        def credentialsId = params['CREDENTIALS_ID']
+        def locationFlag = locationType == 'regional' ? '--region' : '--zone'
+
+        def ingressEnabled = params['INGRESS_ENABLED']
+        def ingressName = params['INGRESS_NAME']
+        def ingressHost = params['INGRESS_HOST']
+        def ingressClassName = params['INGRESS_CLASS_NAME']
+        def routes = params['INGRESS_ROUTES']
+
+
+        def gcloudConfig = "${steps.env.WORKSPACE}/.gcloud"
+        def kubeConfig = "${steps.env.WORKSPACE}/.kube/config"
+
+        steps.sh(script: "mkdir -p ${gcloudConfig}", returnStdout: true).trim()
+        steps.sh(script: "mkdir -p ${steps.env.WORKSPACE}/.kube", returnStdout: true).trim()
+
+        def authResult = null
+        def credentialsResult = null
+
+        steps.withCredentials([
+                [$class: 'FileBinding', credentialsId: credentialsId, variable: 'GCP_KEY_FILE']
+        ]) {
+
+            authResult = steps.sh(
+                    script: "CLOUDSDK_CONFIG=${gcloudConfig} gcloud auth activate-service-account --key-file=\"\$GCP_KEY_FILE\"",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo("authResult: ${authResult}")
+
+            credentialsResult = steps.sh(
+                    script: "CLOUDSDK_CONFIG=${gcloudConfig} KUBECONFIG=${kubeConfig} gcloud container clusters get-credentials ${clusterName} ${locationFlag} ${location} --project ${projectId}",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo("credentialsResult: ${credentialsResult}")
+        }
+
+        def nodesResult = steps.sh(
+                script: "kubectl --kubeconfig=${kubeConfig} get nodes",
+                returnStdout: true
+        ).trim()
+
+        steps.echo("nodesResult:")
+        steps.echo(nodesResult)
+
+        def pathsBlock = routes.collect { route -> """
+            - path: ${route.path}
+              pathType: ${route.pathType}
+              backend:
+                service:
+                  name: ${route.service}
+                  port:
+                    number: ${route.port}
+""" }.join('')
+
+        def manifest = """
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ${ingressName}
+  namespace: ${namespace}
+spec:
+  ingressClassName: ${ingressClassName}
+  rules:
+    - host: ${ingressHost}
+      http:
+        paths:
+${pathsBlock}
+""".stripIndent()
+
+        steps.echo("manifest:")
+        steps.echo(manifest)
+
+        def manifestFile = "${steps.env.WORKSPACE}/${ingressName}-gke-ingress.yaml"
+
+        steps.writeFile(
+                file: manifestFile,
+                text: manifest
+        )
+
+        def applyResult = steps.sh(
+                script: "kubectl --kubeconfig=${kubeConfig} apply -f ${manifestFile}",
+                returnStdout: true
+        ).trim()
+
+        steps.echo("applyResult:")
+        steps.echo(applyResult)
 
     }
 }
