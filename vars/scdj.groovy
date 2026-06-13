@@ -65,7 +65,7 @@ def call(body) {
     def finalMap = [:]
 
     ralfJson.each { key, value ->
-        if (key.contains('@final')) {
+        if (key.contains('@__final__')) {
             finalMap[key] = value
         } else {
             tryMap[key] = value
