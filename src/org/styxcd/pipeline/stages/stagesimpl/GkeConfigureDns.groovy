@@ -39,12 +39,12 @@ class GkeConfigureDns implements Serializable {
         yml.release?.environments?."${params ['LIFECYCLE']}"?.each { target ->
             if(target?.name == params ['TARGET_NAME']) {
 
-//                params['CLUSTER_NAME'] = target?.platform?.cluster_name
-//                params['PROJECT_ID'] = target?.platform?.project_id
-//                params['LOCATION'] = target?.platform?.location
-//                params['LOCATION_TYPE'] = target?.platform?.location_type
-//                params['NAMESPACE'] = target?.platform?.namespace
-//                params['CREDENTIALS_ID'] = target?.platform?.credentials?.id
+                params['CLUSTER_NAME'] = target?.platform?.cluster_name
+                params['PROJECT_ID'] = target?.platform?.project_id
+                params['LOCATION'] = target?.platform?.location
+                params['LOCATION_TYPE'] = target?.platform?.location_type
+                params['NAMESPACE'] = target?.platform?.namespace
+                params['CREDENTIALS_ID'] = target?.platform?.credentials?.id
 //                params['INGRESS_ENABLED']
 //                params['INGRESS_NAME']
 //                params['INGRESS_HOST']

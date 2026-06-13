@@ -131,8 +131,9 @@ kind: Ingress
 metadata:
   name: ${ingressName}
   namespace: ${namespace}
+  annotations:
+    kubernetes.io/ingress.class: "${ingressClassName}"
 spec:
-  ingressClassName: ${ingressClassName}
   rules:
     - host: ${ingressHost}
       http:
