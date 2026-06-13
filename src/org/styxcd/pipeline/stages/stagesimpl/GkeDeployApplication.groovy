@@ -46,6 +46,17 @@ class GkeDeployApplication implements Serializable {
                 params['IMAGE'] = dockerArtifact?.image
                 params['REPLICAS'] = targetApp?.replicas ?: target?.platform?.defaults?.replicas
                 params['SERVICE_TYPE'] = targetApp?.service?.type ?: target?.platform?.defaults?.service?.type
+
+                def secretsMap = [:]
+                targetApp?.secrets?.each { secret ->
+                    def envName = secret?.env_name
+                    secretsMap[envName] = [
+                            sourceType  : secret?.source?.type,
+                            credentialId: secret?.source?.credential_id
+                    ]
+                }
+                params['SECRETS'] = secretsMap
+
                 params['CONTAINER_PORT'] = targetApp?.container?.port
                 params['SERVICE_PORT'] = targetApp?.service?.port
                 params['SERVICE_TARGET_PORT'] = targetApp?.service?.target_port
@@ -69,6 +80,7 @@ class GkeDeployApplication implements Serializable {
         def containerPort = params['CONTAINER_PORT']
         def servicePort = params['SERVICE_PORT']
         def serviceTargetPort = params['SERVICE_TARGET_PORT']
+        def secrets = params['SECRETS']
 
         def gcloudConfig = "${steps.env.WORKSPACE}/.gcloud"
         def kubeConfig = "${steps.env.WORKSPACE}/.kube/config"
@@ -106,8 +118,43 @@ class GkeDeployApplication implements Serializable {
         steps.echo("nodesResult:")
         steps.echo(nodesResult)
 
+        def secretName = "${deploymentName}-secrets"
+
+        if (secrets && !secrets.isEmpty()) {
+            secrets.each { envName, secretConfig ->
+                steps.withCredentials([steps.string(credentialsId: secretConfig.credentialId, variable: 'SECRET_VALUE')]) {
+                    //TODO use ansible template
+                    def secretApplyResult = steps.sh(
+                            script: """
+kubectl --kubeconfig=${kubeConfig} create secret generic ${secretName} \\
+  -n ${namespace} \\
+  --from-literal=${envName}="\$SECRET_VALUE" \\
+  --dry-run=client -o yaml | kubectl --kubeconfig=${kubeConfig} apply -f -
+""",
+                            returnStdout: true
+                    ).trim()
+
+                    steps.echo("secretApplyResult for ${envName}:")
+                    steps.echo(secretApplyResult)
+                }
+            }
+        }
 
         //TODO replace with ansible template when full structure is understood
+
+        def envBlock = ""
+
+        if (secrets && !secrets.isEmpty()) {
+            envBlock = """
+          env:
+${secrets.collect { envName, secretConfig -> """            - name: ${envName}
+              valueFrom:
+                secretKeyRef:
+                  name: ${secretName}
+                  key: ${envName}""" }.join('\n')}
+""".stripIndent()
+        }
+
         def manifest = """
 apiVersion: apps/v1
 kind: Deployment
@@ -131,6 +178,7 @@ spec:
           image: ${image}
           ports:
             - containerPort: ${containerPort}
+${envBlock}
 ---
 apiVersion: v1
 kind: Service
@@ -147,6 +195,9 @@ spec:
     - port: ${servicePort}
       targetPort: ${serviceTargetPort}
 """.stripIndent()
+
+        steps.echo("manifest:")
+        steps.echo(manifest)
 
         def manifestFile = "${steps.env.WORKSPACE}/${deploymentName}-gke-manifest.yaml"
 

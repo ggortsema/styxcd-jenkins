@@ -129,10 +129,29 @@ class GkeValidateDeployment implements Serializable {
         steps.echo("podsSnapshotBefore:")
         steps.echo(podsSnapshotBefore)
 
-        def rolloutResult = steps.sh(
-                script: "kubectl --kubeconfig=${kubeConfig} rollout status deployment/${deploymentName} -n ${namespace} --timeout=300s",
-                returnStdout: true
-        ).trim()
+        def rolloutResult
+
+        try {
+
+            rolloutResult = steps.sh(
+                    script: "kubectl --kubeconfig=${kubeConfig} rollout status deployment/${deploymentName} -n ${namespace} --timeout=30s",
+                    returnStdout: true
+            ).trim()
+
+        } catch (Exception ex) {
+
+            // collect diagnostics
+
+            def podResult = steps.sh(
+                    script: "kubectl --kubeconfig=${kubeConfig} get pods -n ${namespace}",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo("podResult:")
+            steps.echo(podResult)
+
+            throw ex
+        }
 
         steps.echo("rolloutResult:")
         steps.echo(rolloutResult)
