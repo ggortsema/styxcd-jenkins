@@ -33,14 +33,28 @@ class GkeCreateNamespace implements Serializable {
 
         steps.echo "------------------------"
 
-
         steps.echo "Running ${this.class.simpleName}"
 
-        def clusterName = "styxcd-sandbox-gke"
-        def projectId = "styxcd-sandbox-grant"
-        def clusterLocation = "us-east1-b"
-        def namespace = "johnny-johnny"
-        def credentialsId = "gcp-service-account"
+        //TODO remove this parsing bridge later and get values directly from orchestrator
+        yml.release?.environments?."${params ['LIFECYCLE']}"?.each { target ->
+            if(target?.name == params ['TARGET_NAME']) {
+
+                params['CLUSTER_NAME'] = target?.platform?.cluster_name
+                params['PROJECT_ID'] = target?.platform?.project_id
+                params['LOCATION'] = target?.platform?.location
+                params['LOCATION_TYPE'] = target?.platform?.location_type
+                params['NAMESPACE'] = target?.platform?.namespace
+                params['CREDENTIALS_ID'] = target?.platform?.credentials?.id
+            }
+        }
+
+        def clusterName = params['CLUSTER_NAME']
+        def projectId = params['PROJECT_ID']
+        def location = params['LOCATION']
+        def locationType = params['LOCATION_TYPE']
+        def namespace = params['NAMESPACE']
+        def credentialsId = params['CREDENTIALS_ID']
+        def locationFlag = locationType == 'regional' ? '--region' : '--zone'
 
         def gcloudConfig = "${steps.env.WORKSPACE}/.gcloud"
         def kubeConfig = "${steps.env.WORKSPACE}/.kube/config"
@@ -63,7 +77,7 @@ class GkeCreateNamespace implements Serializable {
             steps.echo("authResult: ${authResult}")
 
             credentialsResult = steps.sh(
-                    script: "CLOUDSDK_CONFIG=${gcloudConfig} KUBECONFIG=${kubeConfig} gcloud container clusters get-credentials ${clusterName} --zone ${clusterLocation} --project ${projectId}",
+                    script: "CLOUDSDK_CONFIG=${gcloudConfig} KUBECONFIG=${kubeConfig} gcloud container clusters get-credentials ${clusterName} ${locationFlag} ${location} --project ${projectId}",
                     returnStdout: true
             ).trim()
 
