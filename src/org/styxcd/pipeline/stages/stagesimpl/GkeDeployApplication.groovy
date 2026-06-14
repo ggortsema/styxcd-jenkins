@@ -65,6 +65,18 @@ class GkeDeployApplication implements Serializable {
                 }
                 params['ENV_VARS'] = envVarsList
 
+                def healthCheck = targetApp?.health_check
+                if (healthCheck) {
+                    params['HEALTH_CHECK_ENABLED'] = true
+                    params['HEALTH_CHECK_PATH'] = healthCheck?.path
+                    params['HEALTH_CHECK_PORT'] = healthCheck?.port
+                    params['HEALTH_CHECK_TYPE'] = healthCheck?.type ?: 'HTTP'
+                    params['BACKEND_CONFIG_NAME'] = "${params['APP_NAME']}-backend-config"
+                } else {
+                    params['HEALTH_CHECK_ENABLED'] = false
+                    params['BACKEND_CONFIG_NAME'] = null
+                }
+
                 params['CONTAINER_PORT'] = targetApp?.container?.port
                 params['SERVICE_PORT'] = targetApp?.service?.port
                 params['SERVICE_TARGET_PORT'] = targetApp?.service?.target_port
@@ -91,6 +103,12 @@ class GkeDeployApplication implements Serializable {
         def serviceTargetPort = params['SERVICE_TARGET_PORT']
         def secrets = params['SECRETS']
         def envVars = params['ENV_VARS']
+
+        def healthCheckEnabled = params['HEALTH_CHECK_ENABLED']
+        def healthCheckPath = params['HEALTH_CHECK_PATH']
+        def healthCheckPort = params['HEALTH_CHECK_PORT']
+        def healthCheckType = params['HEALTH_CHECK_TYPE']
+        def backendConfigName = params['BACKEND_CONFIG_NAME']
 
         def gcloudConfig = "${steps.env.WORKSPACE}/.gcloud"
         def kubeConfig = "${steps.env.WORKSPACE}/.kube/config"
@@ -177,6 +195,33 @@ ${envEntries.join('\n')}
 """
         }
 
+        def serviceAnnotationsBlock = ""
+
+        if (healthCheckEnabled) {
+            serviceAnnotationsBlock = """
+  annotations:
+    cloud.google.com/backend-config: '{"default":"${backendConfigName}"}'
+"""
+        }
+
+        def backendConfigBlock = ""
+
+        if (healthCheckEnabled) {
+            backendConfigBlock = """
+---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: ${backendConfigName}
+  namespace: ${namespace}
+spec:
+  healthCheck:
+    requestPath: ${healthCheckPath}
+    port: ${healthCheckPort}
+    type: ${healthCheckType}
+"""
+        }
+
         def manifest = """
 apiVersion: apps/v1
 kind: Deployment
@@ -209,6 +254,7 @@ metadata:
   namespace: ${namespace}
   labels:
     app: ${deploymentName}
+${serviceAnnotationsBlock}
 spec:
   type: ${serviceType}
   selector:
@@ -216,6 +262,7 @@ spec:
   ports:
     - port: ${servicePort}
       targetPort: ${serviceTargetPort}
+${backendConfigBlock}
 """.stripIndent()
 
         steps.echo("manifest:")
