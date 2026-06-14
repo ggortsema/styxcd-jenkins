@@ -71,7 +71,7 @@ class GkeDeployApplication implements Serializable {
                     params['HEALTH_CHECK_PATH'] = healthCheck?.path
                     params['HEALTH_CHECK_PORT'] = healthCheck?.port
                     params['HEALTH_CHECK_TYPE'] = healthCheck?.type ?: 'HTTP'
-                    params['BACKEND_CONFIG_NAME'] = "${params['APP_NAME']}-backend-config"
+                    params['BACKEND_CONFIG_NAME'] = (params['APP_NAME'].toString() + "-backend-config")
                 } else {
                     params['HEALTH_CHECK_ENABLED'] = false
                     params['BACKEND_CONFIG_NAME'] = null
