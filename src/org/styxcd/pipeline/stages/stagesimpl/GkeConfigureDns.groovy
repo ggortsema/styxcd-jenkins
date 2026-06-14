@@ -45,19 +45,16 @@ class GkeConfigureDns implements Serializable {
                 params['LOCATION_TYPE'] = target?.platform?.location_type
                 params['NAMESPACE'] = target?.platform?.namespace
                 params['CREDENTIALS_ID'] = target?.platform?.credentials?.id
-//                params['INGRESS_ENABLED']
-//                params['INGRESS_NAME']
-//                params['INGRESS_HOST']
-//                params['INGRESS_CLASS_NAME']
-//                params['INGRESS_ROUTES']
-//                params['DNS_ENABLED']
-//                params['DNS_PROVIDER']
-//                params['DNS_HOSTED_ZONE']
-//                params['DNS_RECORD_NAME']
-//                params['DNS_RECORD_TYPE']
-//                params['DNS_TTL']
-//                params['DNS_ACCESS_KEY_ID_CREDENTIAL']
-//                params['DNS_SECRET_ACCESS_KEY_CREDENTIAL']
+                params['INGRESS_NAME'] = target?.platform?.ingress?.name
+                params['DNS_ENABLED'] = target?.platform?.dns?.enabled
+                params['DNS_PROVIDER'] = target?.platform?.dns?.provider
+                params['DNS_HOSTED_ZONE'] = target?.platform?.dns?.hosted_zone
+                params['DNS_RECORD_NAME'] = target?.platform?.dns?.record_name
+                params['DNS_RECORD_TYPE'] = target?.platform?.dns?.record_type
+                params['DNS_TTL'] = target?.platform?.dns?.ttl
+                params['DNS_CREDENTIAL_SOURCE'] = target?.platform?.dns?.credentials?.source
+                params['DNS_ACCESS_KEY_ID_CREDENTIAL'] = target?.platform?.dns?.credentials?.access_key_id
+                params['DNS_SECRET_ACCESS_KEY_CREDENTIAL'] = target?.platform?.dns?.credentials?.secret_access_key
             }
         }
 
@@ -68,6 +65,15 @@ class GkeConfigureDns implements Serializable {
         def namespace = params['NAMESPACE']
         def credentialsId = params['CREDENTIALS_ID']
         def locationFlag = locationType == 'regional' ? '--region' : '--zone'
+        def ingressName = params['INGRESS_NAME']
+        def dnsEnabled = params['DNS_ENABLED']
+        def dnsHostedZone = params['DNS_PROVIDER']
+        def dnsRecordName = params['DNS_HOSTED_ZONE']
+        def dnsRecordType = params['DNS_RECORD_NAME']
+        def dnsTtl = params['DNS_RECORD_TYPE']
+        def dnsCredentialSource = params['DNS_CREDENTIAL_SOURCE']
+        def dnsAccessKeyId = params['DNS_ACCESS_KEY_ID_CREDENTIAL']
+        def dnsSecretAccessKey = params['DNS_SECRET_ACCESS_KEY_CREDENTIAL']
 
         def gcloudConfig = "${steps.env.WORKSPACE}/.gcloud"
         def kubeConfig = "${steps.env.WORKSPACE}/.kube/config"
@@ -104,6 +110,25 @@ class GkeConfigureDns implements Serializable {
 
         steps.echo("nodesResult:")
         steps.echo(nodesResult)
+
+        def ingressAddress = steps.sh(
+                script: """
+            kubectl --kubeconfig=${kubeConfig} \
+            get ingress ${ingressName} \
+            -n ${namespace} \
+            -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+        """.stripIndent(),
+                returnStdout: true
+        ).trim()
+
+        if(!ingressAddress) {
+            steps.error("Ingress address not available for ${ingressName}")
+        }
+
+        params['INGRESS_ADDRESS'] = ingressAddress
+        stageSpecificMap['INGRESS_ADDRESS'] = ingressAddress
+
+        steps.echo("ingressAddress: ${ingressAddress}")
 
 
 
