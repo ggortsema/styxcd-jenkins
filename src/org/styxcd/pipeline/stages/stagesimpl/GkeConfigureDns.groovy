@@ -130,7 +130,62 @@ class GkeConfigureDns implements Serializable {
 
         steps.echo("ingressAddress: ${ingressAddress}")
 
+        steps.withCredentials([
+                steps.string(credentialsId: dnsAccessKeyId, variable: 'AWS_ACCESS_KEY_ID'),
+                steps.string(credentialsId: dnsSecretAccessKey, variable: 'AWS_SECRET_ACCESS_KEY')
+        ]) {
+            def hostedZoneId = steps.sh(
+                    script: """
+            AWS_ACCESS_KEY_ID="\$AWS_ACCESS_KEY_ID" \
+            AWS_SECRET_ACCESS_KEY="\$AWS_SECRET_ACCESS_KEY" \
+            aws route53 list-hosted-zones-by-name \
+              --dns-name ${dnsHostedZone} \
+              --query "HostedZones[0].Id" \
+              --output text
+        """.stripIndent(),
+                    returnStdout: true
+            ).trim().replace('/hostedzone/', '')
 
+            def changeBatchFile = "${steps.env.WORKSPACE}/${dnsRecordName}-route53-upsert.json"
+
+            steps.writeFile(
+                    file: changeBatchFile,
+                    text: """
+{
+  "Comment": "StyxCD UPSERT for ${dnsRecordName}",
+  "Changes": [
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "${dnsRecordName}",
+        "Type": "${dnsRecordType}",
+        "TTL": ${dnsTtl},
+        "ResourceRecords": [
+          {
+            "Value": "${ingressAddress}"
+          }
+        ]
+      }
+    }
+  ]
+}
+""".stripIndent()
+            )
+            def dnsResult = steps.sh(
+                    script: """
+            AWS_ACCESS_KEY_ID="\$AWS_ACCESS_KEY_ID" \
+            AWS_SECRET_ACCESS_KEY="\$AWS_SECRET_ACCESS_KEY" \
+            aws route53 change-resource-record-sets \
+              --hosted-zone-id ${hostedZoneId} \
+              --change-batch file://${changeBatchFile}
+        """.stripIndent(),
+                    returnStdout: true
+            ).trim()
+
+            steps.echo("dnsResult:")
+            steps.echo(dnsResult)
+
+        }
 
     }
 }
