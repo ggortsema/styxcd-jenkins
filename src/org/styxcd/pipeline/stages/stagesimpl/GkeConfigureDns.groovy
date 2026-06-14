@@ -1,16 +1,8 @@
 package org.styxcd.pipeline.stages.stagesimpl
 
 class GkeConfigureDns implements Serializable {
-    /**
-     * a reference to the pipeline that allows you to run pipeline steps in your shared libary
-     */
     def steps
 
-    /**
-     * Constructor
-     *
-     * @param steps a reference to the pipeline that allows you to run pipeline steps in your shared libary
-     */
     public GkeConfigureDns(steps, featureFlags) {
         this.steps = steps
     }
@@ -22,22 +14,21 @@ class GkeConfigureDns implements Serializable {
         stageSpecificMap['TEST_VALUE'] = "IT WORKED"
 
         def yml = params['YML']
+
         steps.echo "here is yml"
         steps.echo "${yml}"
 
         steps.echo "----- STAGE PARAMS -----"
-
         params.each { key, value ->
             steps.echo "${key} = ${value}"
         }
-
         steps.echo "------------------------"
 
         steps.echo "Running ${this.class.simpleName}"
 
-        //TODO remove this parsing bridge later and get values directly from orchestrator
-        yml.release?.environments?."${params ['LIFECYCLE']}"?.each { target ->
-            if(target?.name == params ['TARGET_NAME']) {
+        // TODO remove this parsing bridge later and get values directly from orchestrator
+        yml.release?.environments?."${params['LIFECYCLE']}"?.each { target ->
+            if (target?.name == params['TARGET_NAME']) {
 
                 params['CLUSTER_NAME'] = target?.platform?.cluster_name
                 params['PROJECT_ID'] = target?.platform?.project_id
@@ -45,16 +36,29 @@ class GkeConfigureDns implements Serializable {
                 params['LOCATION_TYPE'] = target?.platform?.location_type
                 params['NAMESPACE'] = target?.platform?.namespace
                 params['CREDENTIALS_ID'] = target?.platform?.credentials?.id
+
                 params['INGRESS_NAME'] = target?.platform?.ingress?.name
+
                 params['DNS_ENABLED'] = target?.platform?.dns?.enabled
                 params['DNS_PROVIDER'] = target?.platform?.dns?.provider
                 params['DNS_HOSTED_ZONE'] = target?.platform?.dns?.hosted_zone
-                params['DNS_RECORD_NAME'] = target?.platform?.dns?.record_name
                 params['DNS_RECORD_TYPE'] = target?.platform?.dns?.record_type
                 params['DNS_TTL'] = target?.platform?.dns?.ttl
                 params['DNS_CREDENTIAL_SOURCE'] = target?.platform?.dns?.credentials?.source
                 params['DNS_ACCESS_KEY_ID_CREDENTIAL'] = target?.platform?.dns?.credentials?.access_key_id
                 params['DNS_SECRET_ACCESS_KEY_CREDENTIAL'] = target?.platform?.dns?.credentials?.secret_access_key
+
+                def dnsRecordsList = []
+
+                target?.platform?.ingress?.hosts?.each { hostRule ->
+                    dnsRecordsList << [
+                            name: hostRule?.host,
+                            type: target?.platform?.dns?.record_type,
+                            ttl : target?.platform?.dns?.ttl
+                    ]
+                }
+
+                params['DNS_RECORDS'] = dnsRecordsList
             }
         }
 
@@ -65,13 +69,13 @@ class GkeConfigureDns implements Serializable {
         def namespace = params['NAMESPACE']
         def credentialsId = params['CREDENTIALS_ID']
         def locationFlag = locationType == 'regional' ? '--region' : '--zone'
+
         def ingressName = params['INGRESS_NAME']
+
         def dnsEnabled = params['DNS_ENABLED']
         def dnsProvider = params['DNS_PROVIDER']
         def dnsHostedZone = params['DNS_HOSTED_ZONE']
-        def dnsRecordName = params['DNS_RECORD_NAME']
-        def dnsRecordType = params['DNS_RECORD_TYPE']
-        def dnsTtl = params['DNS_TTL']
+        def dnsRecords = params['DNS_RECORDS']
         def dnsCredentialSource = params['DNS_CREDENTIAL_SOURCE']
         def dnsAccessKeyId = params['DNS_ACCESS_KEY_ID_CREDENTIAL']
         def dnsSecretAccessKey = params['DNS_SECRET_ACCESS_KEY_CREDENTIAL']
@@ -122,7 +126,7 @@ class GkeConfigureDns implements Serializable {
                 returnStdout: true
         ).trim()
 
-        if(!ingressAddress) {
+        if (!ingressAddress) {
             steps.error("Ingress address not available for ${ingressName}")
         }
 
@@ -130,6 +134,10 @@ class GkeConfigureDns implements Serializable {
         stageSpecificMap['INGRESS_ADDRESS'] = ingressAddress
 
         steps.echo("ingressAddress: ${ingressAddress}")
+
+        if (!dnsRecords || dnsRecords.isEmpty()) {
+            steps.error("No DNS records found for ingress ${ingressName}")
+        }
 
         steps.withCredentials([
                 steps.string(credentialsId: dnsAccessKeyId, variable: 'AWS_ACCESS_KEY_ID'),
@@ -147,20 +155,15 @@ class GkeConfigureDns implements Serializable {
                     returnStdout: true
             ).trim().replace('/hostedzone/', '')
 
-            def changeBatchFile = "${steps.env.WORKSPACE}/${dnsRecordName}-route53-upsert.json"
+            steps.echo("hostedZoneId: ${hostedZoneId}")
 
-            steps.writeFile(
-                    file: changeBatchFile,
-                    text: """
-{
-  "Comment": "StyxCD UPSERT for ${dnsRecordName}",
-  "Changes": [
+            def changesBlock = dnsRecords.collect { record -> """
     {
       "Action": "UPSERT",
       "ResourceRecordSet": {
-        "Name": "${dnsRecordName}",
-        "Type": "${dnsRecordType}",
-        "TTL": ${dnsTtl},
+        "Name": "${record.name}",
+        "Type": "${record.type}",
+        "TTL": ${record.ttl},
         "ResourceRecords": [
           {
             "Value": "${ingressAddress}"
@@ -168,10 +171,25 @@ class GkeConfigureDns implements Serializable {
         ]
       }
     }
+""" }.join(',')
+
+            def changeBatchFile = "${steps.env.WORKSPACE}/${ingressName}-route53-upsert.json"
+
+            steps.writeFile(
+                    file: changeBatchFile,
+                    text: """
+{
+  "Comment": "StyxCD UPSERT for GKE ingress ${ingressName}",
+  "Changes": [
+${changesBlock}
   ]
 }
 """.stripIndent()
             )
+
+            steps.echo("Route53 change batch:")
+            steps.echo(steps.readFile(changeBatchFile))
+
             def dnsResult = steps.sh(
                     script: """
             AWS_ACCESS_KEY_ID="\$AWS_ACCESS_KEY_ID" \
@@ -185,8 +203,6 @@ class GkeConfigureDns implements Serializable {
 
             steps.echo("dnsResult:")
             steps.echo(dnsResult)
-
         }
-
     }
 }

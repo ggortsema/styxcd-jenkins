@@ -15,20 +15,19 @@ class GkeDeployApplication implements Serializable {
         stageSpecificMap['TEST_VALUE'] = "IT WORKED"
 
         def yml = params['YML']
+
         steps.echo "here is yml"
         steps.echo "${yml}"
 
         steps.echo "----- STAGE PARAMS -----"
-
         params.each { key, value ->
             steps.echo "${key} = ${value}"
         }
-
         steps.echo "------------------------"
 
         steps.echo "Running ${this.class.simpleName}"
 
-        //TODO remove this parsing bridge later and get values directly from orchestrator
+        // TODO remove this parsing bridge later and get values directly from orchestrator
         yml.release?.environments?."${params['LIFECYCLE']}"?.each { target ->
             if (target?.name == params['TARGET_NAME']) {
 
@@ -39,9 +38,9 @@ class GkeDeployApplication implements Serializable {
                 params['NAMESPACE'] = target?.platform?.namespace
                 params['CREDENTIALS_ID'] = target?.platform?.credentials?.id
 
-                def targetApp = target?.platform?.applications?.find {it?.name == params['APP_NAME']}
-                def releaseApp = yml.release?.applications?.values()?.flatten()?.find {it?.name == params['APP_NAME']}
-                def dockerArtifact = releaseApp?.artifacts?.find {it?.type == 'docker-image'}
+                def targetApp = target?.platform?.applications?.find { it?.name == params['APP_NAME'] }
+                def releaseApp = yml.release?.applications?.values()?.flatten()?.find { it?.name == params['APP_NAME'] }
+                def dockerArtifact = releaseApp?.artifacts?.find { it?.type == 'docker-image' }
 
                 params['IMAGE'] = dockerArtifact?.image
                 params['REPLICAS'] = targetApp?.replicas ?: target?.platform?.defaults?.replicas
@@ -56,6 +55,15 @@ class GkeDeployApplication implements Serializable {
                     ]
                 }
                 params['SECRETS'] = secretsMap
+
+                def envVarsList = []
+                targetApp?.env?.each { envVar ->
+                    envVarsList << [
+                            name : envVar?.name,
+                            value: envVar?.value
+                    ]
+                }
+                params['ENV_VARS'] = envVarsList
 
                 params['CONTAINER_PORT'] = targetApp?.container?.port
                 params['SERVICE_PORT'] = targetApp?.service?.port
@@ -72,6 +80,7 @@ class GkeDeployApplication implements Serializable {
         def namespace = params['NAMESPACE']
         def credentialsId = params['CREDENTIALS_ID']
         def locationFlag = locationType == 'regional' ? '--region' : '--zone'
+
         def image = params['IMAGE']
         def replicas = params['REPLICAS']
         def serviceType = params['SERVICE_TYPE']
@@ -81,6 +90,7 @@ class GkeDeployApplication implements Serializable {
         def servicePort = params['SERVICE_PORT']
         def serviceTargetPort = params['SERVICE_TARGET_PORT']
         def secrets = params['SECRETS']
+        def envVars = params['ENV_VARS']
 
         def gcloudConfig = "${steps.env.WORKSPACE}/.gcloud"
         def kubeConfig = "${steps.env.WORKSPACE}/.kube/config"
@@ -123,7 +133,6 @@ class GkeDeployApplication implements Serializable {
         if (secrets && !secrets.isEmpty()) {
             secrets.each { envName, secretConfig ->
                 steps.withCredentials([steps.string(credentialsId: secretConfig.credentialId, variable: 'SECRET_VALUE')]) {
-                    //TODO use ansible template
                     def secretApplyResult = steps.sh(
                             script: """
 kubectl --kubeconfig=${kubeConfig} create secret generic ${secretName} \\
@@ -140,18 +149,31 @@ kubectl --kubeconfig=${kubeConfig} create secret generic ${secretName} \\
             }
         }
 
-        //TODO replace with ansible template when full structure is understood
+        def envEntries = []
 
-        def envBlock = ""
+        if (envVars && !envVars.isEmpty()) {
+            envVars.each { envVar ->
+                envEntries << """            - name: ${envVar.name}
+              value: "${envVar.value}" """
+            }
+        }
 
         if (secrets && !secrets.isEmpty()) {
-            envBlock = """
-          env:
-${secrets.collect { envName, secretConfig -> """            - name: ${envName}
+            secrets.each { envName, secretConfig ->
+                envEntries << """            - name: ${envName}
               valueFrom:
                 secretKeyRef:
                   name: ${secretName}
-                  key: ${envName}""" }.join('\n')}
+                  key: ${envName}"""
+            }
+        }
+
+        def envBlock = ""
+
+        if (!envEntries.isEmpty()) {
+            envBlock = """
+          env:
+${envEntries.join('\n')}
 """
         }
 
@@ -229,6 +251,5 @@ spec:
 
         steps.echo("serviceResult:")
         steps.echo(serviceResult)
-
     }
 }

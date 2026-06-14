@@ -1,16 +1,8 @@
 package org.styxcd.pipeline.stages.stagesimpl
 
 class GkeCreateIngress implements Serializable {
-    /**
-     * a reference to the pipeline that allows you to run pipeline steps in your shared libary
-     */
     def steps
 
-    /**
-     * Constructor
-     *
-     * @param steps a reference to the pipeline that allows you to run pipeline steps in your shared libary
-     */
     public GkeCreateIngress(steps, featureFlags) {
         this.steps = steps
     }
@@ -22,22 +14,21 @@ class GkeCreateIngress implements Serializable {
         stageSpecificMap['TEST_VALUE'] = "IT WORKED"
 
         def yml = params['YML']
+
         steps.echo "here is yml"
         steps.echo "${yml}"
 
         steps.echo "----- STAGE PARAMS -----"
-
         params.each { key, value ->
             steps.echo "${key} = ${value}"
         }
-
         steps.echo "------------------------"
 
         steps.echo "Running ${this.class.simpleName}"
 
-        //TODO remove this parsing bridge later and get values directly from orchestrator
+        // TODO remove this parsing bridge later and get values directly from orchestrator
         yml.release?.environments?."${params['LIFECYCLE']}"?.each { target ->
-            if(target?.name == params['TARGET_NAME']) {
+            if (target?.name == params['TARGET_NAME']) {
 
                 params['CLUSTER_NAME'] = target?.platform?.cluster_name
                 params['PROJECT_ID'] = target?.platform?.project_id
@@ -47,20 +38,29 @@ class GkeCreateIngress implements Serializable {
                 params['CREDENTIALS_ID'] = target?.platform?.credentials?.id
                 params['INGRESS_ENABLED'] = target?.platform?.ingress?.enabled
                 params['INGRESS_NAME'] = target?.platform?.ingress?.name
-                params['INGRESS_HOST'] = target?.platform?.ingress?.host
                 params['INGRESS_CLASS_NAME'] = target?.platform?.ingress?.class_name
 
-                def routesList = []
-                target?.platform?.ingress?.routes?.each { route ->
-                    routesList << [
-                            path    : route?.path,
-                            pathType: route?.path_type,
-                            service : route?.service,
-                            port    : route?.port
+                def hostsList = []
+
+                target?.platform?.ingress?.hosts?.each { hostRule ->
+                    def routesList = []
+
+                    hostRule?.routes?.each { route ->
+                        routesList << [
+                                path    : route?.path,
+                                pathType: route?.path_type,
+                                service : route?.service,
+                                port    : route?.port
+                        ]
+                    }
+
+                    hostsList << [
+                            host  : hostRule?.host,
+                            routes: routesList
                     ]
                 }
-                params['INGRESS_ROUTES'] = routesList
 
+                params['INGRESS_HOSTS'] = hostsList
             }
         }
 
@@ -72,12 +72,9 @@ class GkeCreateIngress implements Serializable {
         def credentialsId = params['CREDENTIALS_ID']
         def locationFlag = locationType == 'regional' ? '--region' : '--zone'
 
-        def ingressEnabled = params['INGRESS_ENABLED']
         def ingressName = params['INGRESS_NAME']
-        def ingressHost = params['INGRESS_HOST']
         def ingressClassName = params['INGRESS_CLASS_NAME']
-        def routes = params['INGRESS_ROUTES']
-
+        def ingressHosts = params['INGRESS_HOSTS']
 
         def gcloudConfig = "${steps.env.WORKSPACE}/.gcloud"
         def kubeConfig = "${steps.env.WORKSPACE}/.kube/config"
@@ -115,15 +112,25 @@ class GkeCreateIngress implements Serializable {
         steps.echo("nodesResult:")
         steps.echo(nodesResult)
 
-        def pathsBlock = routes.collect { route -> """
-            - path: ${route.path}
-              pathType: ${route.pathType}
-              backend:
-                service:
-                  name: ${route.service}
-                  port:
-                    number: ${route.port}
+        def rulesBlock = ingressHosts.collect { hostRule ->
+
+            def pathsBlock = hostRule.routes.collect { route -> """
+        - path: ${route.path}
+          pathType: ${route.pathType}
+          backend:
+            service:
+              name: ${route.service}
+              port:
+                number: ${route.port}
 """ }.join('')
+
+            return """
+    - host: ${hostRule.host}
+      http:
+        paths:
+${pathsBlock}
+"""
+        }.join('')
 
         def manifest = """
 apiVersion: networking.k8s.io/v1
@@ -135,10 +142,7 @@ metadata:
     kubernetes.io/ingress.class: "${ingressClassName}"
 spec:
   rules:
-    - host: ${ingressHost}
-      http:
-        paths:
-${pathsBlock}
+${rulesBlock}
 """.stripIndent()
 
         steps.echo("manifest:")
@@ -158,6 +162,5 @@ ${pathsBlock}
 
         steps.echo("applyResult:")
         steps.echo(applyResult)
-
     }
 }
