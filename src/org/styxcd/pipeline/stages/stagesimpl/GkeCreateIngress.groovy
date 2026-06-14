@@ -114,18 +114,18 @@ class GkeCreateIngress implements Serializable {
 
         def rulesBlock = ingressHosts.collect { hostRule ->
 
-            def pathsBlock = hostRule.routes.collect { route -> """
-        - path: ${route.path}
-          pathType: ${route.pathType}
+            def pathsBlock = hostRule['routes'].collect { route -> """
+        - path: ${route['path']}
+          pathType: ${route['pathType']}
           backend:
             service:
-              name: ${route.service}
+              name: ${route['service']}
               port:
-                number: ${route.port}
+                number: ${route['port']}
 """ }.join('')
 
             return """
-    - host: ${hostRule.host}
+    - host: ${hostRule['host']}
       http:
         paths:
 ${pathsBlock}
