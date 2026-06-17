@@ -1,6 +1,6 @@
 package org.styxcd.pipeline.stages.stagesimpl
 
-class DummyWorkflowBody implements Serializable {
+class EksValidateDeployment implements Serializable {
     /**
      * a reference to the pipeline that allows you to run pipeline steps in your shared libary
      */
@@ -11,7 +11,7 @@ class DummyWorkflowBody implements Serializable {
      *
      * @param steps a reference to the pipeline that allows you to run pipeline steps in your shared libary
      */
-    public DummyWorkflowBody(steps, featureFlags) {
+    public EksValidateDeployment(steps, featureFlags) {
         this.steps = steps
     }
 
@@ -38,8 +38,3 @@ class DummyWorkflowBody implements Serializable {
 
     }
 }
-
-
-
-
-
