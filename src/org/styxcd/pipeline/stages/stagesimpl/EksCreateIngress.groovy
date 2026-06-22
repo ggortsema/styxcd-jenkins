@@ -173,10 +173,10 @@ metadata:
   name: ${ingressName}
   namespace: ${namespace}
   annotations:
-    kubernetes.io/ingress.class: "${ingressClassName}"
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
 spec:
+  ingressClassName: ${ingressClassName}
   rules:
 ${rulesBlock}
 """.stripIndent()
