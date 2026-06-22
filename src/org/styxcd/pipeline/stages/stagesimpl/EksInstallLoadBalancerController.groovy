@@ -121,10 +121,13 @@ ${helmEnv} helm upgrade --install aws-load-balancer-controller eks/aws-load-bala
             steps.echo "installResult:"
             steps.echo installResult
 
-            steps.sh(
+            def rolloutRestartResult = steps.sh(
                     script: "kubectl --kubeconfig=${kubeConfig} rollout restart deployment/aws-load-balancer-controller -n kube-system",
                     returnStdout: true
             ).trim()
+
+            steps.echo "rolloutRestartResult:"
+            steps.echo rolloutRestartResult
 
             def rolloutStatus = steps.sh(
                     script: "kubectl --kubeconfig=${kubeConfig} rollout status deployment/aws-load-balancer-controller -n kube-system --timeout=300s",
