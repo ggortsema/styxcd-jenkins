@@ -27,6 +27,7 @@ class EksInstallLoadBalancerController implements Serializable {
 
         steps.echo "Running ${this.class.simpleName}"
 
+        // TODO remove this parsing bridge later and get values directly from orchestrator
         yml.release?.environments?."${params['LIFECYCLE']}"?.each { target ->
             if (target?.name == params['TARGET_NAME'] && target?.platform?.name == 'eks') {
                 params['AWS_REGION'] = target?.platform?.region
@@ -63,7 +64,11 @@ class EksInstallLoadBalancerController implements Serializable {
                 steps.string(credentialsId: awsSecretKeyCredential, variable: 'AWS_SECRET_ACCESS_KEY')
         ]) {
 
-            def identity = steps.sh(script: 'aws sts get-caller-identity', returnStdout: true).trim()
+            def identity = steps.sh(
+                    script: 'aws sts get-caller-identity',
+                    returnStdout: true
+            ).trim()
+
             steps.echo "AWS Identity:"
             steps.echo identity
 
@@ -83,8 +88,9 @@ class EksInstallLoadBalancerController implements Serializable {
             steps.echo "nodesResult:"
             steps.echo nodesResult
 
-            // TEMPORARY SANDBOX WORKAROUND:
-            // The long-term fix is IRSA for aws-load-balancer-controller.
+            // TEMPORARY MVP WORKAROUND:
+            // For the current YAML-driven EKS workflow, grant the existing node role broad ELB permissions.
+            // Future backlog item: replace this with proper IRSA for aws-load-balancer-controller.
             def firstNodeProviderId = steps.sh(
                     script: "kubectl --kubeconfig=${kubeConfig} get nodes -o jsonpath='{.items[0].spec.providerID}'",
                     returnStdout: true
@@ -165,6 +171,22 @@ ${helmEnv} helm upgrade --install aws-load-balancer-controller eks/aws-load-bala
 
             steps.echo "serviceAccountResult:"
             steps.echo serviceAccountResult
+
+            def controllerDeploymentResult = steps.sh(
+                    script: "kubectl --kubeconfig=${kubeConfig} get deployment aws-load-balancer-controller -n kube-system -o yaml",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "controllerDeploymentResult:"
+            steps.echo controllerDeploymentResult
+
+            def controllerLogsResult = steps.sh(
+                    script: "kubectl --kubeconfig=${kubeConfig} logs deployment/aws-load-balancer-controller -n kube-system --tail=50",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "controllerLogsResult:"
+            steps.echo controllerLogsResult
 
             def rolloutRestartResult = steps.sh(
                     script: "kubectl --kubeconfig=${kubeConfig} rollout restart deployment/aws-load-balancer-controller -n kube-system",
