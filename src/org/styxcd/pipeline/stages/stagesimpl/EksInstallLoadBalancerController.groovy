@@ -29,26 +29,40 @@ class EksInstallLoadBalancerController implements Serializable {
 
         //TODO remove this parsing bridge later and get values directly from orchestrator
         yml.release?.environments?."${params['LIFECYCLE']}"?.each { target ->
-            if (target?.name == params['TARGET_NAME']) {
+            if (target?.name == params['TARGET_NAME'] && target?.platform?.name == 'eks') {
                 params['AWS_REGION'] = target?.platform?.region
                 params['CLUSTER_NAME'] = target?.platform?.cluster_name
                 params['NAMESPACE'] = target?.platform?.namespace
-                params['CREDENTIALS_ID'] = target?.platform?.credentials?.id
+                params['AWS_ACCESS_KEY_ID_CREDENTIAL'] = target?.platform?.credentials?.access_key_id
+                params['AWS_SECRET_ACCESS_KEY_CREDENTIAL'] = target?.platform?.credentials?.secret_access_key
             }
         }
 
         def awsRegion = params['AWS_REGION']
         def clusterName = params['CLUSTER_NAME']
         def namespace = params['NAMESPACE'] ?: 'default'
-        def credentialsId = params['CREDENTIALS_ID']
+        def awsAccessKeyCredential = params['AWS_ACCESS_KEY_ID_CREDENTIAL'] ?: 'aws-access-key-id'
+        def awsSecretKeyCredential = params['AWS_SECRET_ACCESS_KEY_CREDENTIAL'] ?: 'aws-secret-access-key'
+
+        if (!awsRegion?.trim()) {
+            steps.error "Missing AWS_REGION for EKS target ${params['TARGET_NAME']}"
+        }
+
+        if (!clusterName?.trim()) {
+            steps.error "Missing CLUSTER_NAME for EKS target ${params['TARGET_NAME']}"
+        }
 
         def kubeConfig = "${steps.env.WORKSPACE}/.kube/config"
+        def helmConfigHome = "${steps.env.WORKSPACE}/.helm/config"
+        def helmCacheHome = "${steps.env.WORKSPACE}/.helm/cache"
+        def helmDataHome = "${steps.env.WORKSPACE}/.helm/data"
 
         steps.sh(script: "mkdir -p ${steps.env.WORKSPACE}/.kube", returnStdout: true).trim()
+        steps.sh(script: "mkdir -p ${helmConfigHome} ${helmCacheHome} ${helmDataHome}", returnStdout: true).trim()
 
         steps.withCredentials([
-                steps.string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-                steps.string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                steps.string(credentialsId: awsAccessKeyCredential, variable: 'AWS_ACCESS_KEY_ID'),
+                steps.string(credentialsId: awsSecretKeyCredential, variable: 'AWS_SECRET_ACCESS_KEY')
         ]) {
 
             def identity = steps.sh(
@@ -75,8 +89,10 @@ class EksInstallLoadBalancerController implements Serializable {
             steps.echo "nodesResult:"
             steps.echo nodesResult
 
+            def helmEnv = "KUBECONFIG=${kubeConfig} HELM_CONFIG_HOME=${helmConfigHome} HELM_CACHE_HOME=${helmCacheHome} HELM_DATA_HOME=${helmDataHome}"
+
             def helmRepoAddResult = steps.sh(
-                    script: "helm repo add eks https://aws.github.io/eks-charts",
+                    script: "${helmEnv} helm repo add eks https://aws.github.io/eks-charts",
                     returnStdout: true
             ).trim()
 
@@ -84,7 +100,7 @@ class EksInstallLoadBalancerController implements Serializable {
             steps.echo helmRepoAddResult
 
             def helmRepoUpdateResult = steps.sh(
-                    script: "helm repo update eks",
+                    script: "${helmEnv} helm repo update eks",
                     returnStdout: true
             ).trim()
 
@@ -93,7 +109,7 @@ class EksInstallLoadBalancerController implements Serializable {
 
             def installResult = steps.sh(
                     script: """
-helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
+${helmEnv} helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
   -n kube-system \
   --set clusterName=${clusterName} \
   --set region=${awsRegion} \
