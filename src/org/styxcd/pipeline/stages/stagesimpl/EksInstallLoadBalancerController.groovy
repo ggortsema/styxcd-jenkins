@@ -27,7 +27,6 @@ class EksInstallLoadBalancerController implements Serializable {
 
         steps.echo "Running ${this.class.simpleName}"
 
-        //TODO remove this parsing bridge later and get values directly from orchestrator
         yml.release?.environments?."${params['LIFECYCLE']}"?.each { target ->
             if (target?.name == params['TARGET_NAME'] && target?.platform?.name == 'eks') {
                 params['AWS_REGION'] = target?.platform?.region
@@ -40,7 +39,6 @@ class EksInstallLoadBalancerController implements Serializable {
 
         def awsRegion = params['AWS_REGION']
         def clusterName = params['CLUSTER_NAME']
-        def namespace = params['NAMESPACE'] ?: 'default'
         def awsAccessKeyCredential = params['AWS_ACCESS_KEY_ID_CREDENTIAL'] ?: 'aws-access-key-id'
         def awsSecretKeyCredential = params['AWS_SECRET_ACCESS_KEY_CREDENTIAL'] ?: 'aws-secret-access-key'
 
@@ -65,11 +63,7 @@ class EksInstallLoadBalancerController implements Serializable {
                 steps.string(credentialsId: awsSecretKeyCredential, variable: 'AWS_SECRET_ACCESS_KEY')
         ]) {
 
-            def identity = steps.sh(
-                    script: 'aws sts get-caller-identity',
-                    returnStdout: true
-            ).trim()
-
+            def identity = steps.sh(script: 'aws sts get-caller-identity', returnStdout: true).trim()
             steps.echo "AWS Identity:"
             steps.echo identity
 
@@ -89,10 +83,53 @@ class EksInstallLoadBalancerController implements Serializable {
             steps.echo "nodesResult:"
             steps.echo nodesResult
 
+            // TEMPORARY SANDBOX WORKAROUND:
+            // The long-term fix is IRSA for aws-load-balancer-controller.
+            def firstNodeProviderId = steps.sh(
+                    script: "kubectl --kubeconfig=${kubeConfig} get nodes -o jsonpath='{.items[0].spec.providerID}'",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "firstNodeProviderId:"
+            steps.echo firstNodeProviderId
+
+            def instanceId = firstNodeProviderId.tokenize('/').last()
+
+            steps.echo "instanceId:"
+            steps.echo instanceId
+
+            def instanceProfileArn = steps.sh(
+                    script: "aws ec2 describe-instances --region ${awsRegion} --instance-ids ${instanceId} --query \"Reservations[0].Instances[0].IamInstanceProfile.Arn\" --output text",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "instanceProfileArn:"
+            steps.echo instanceProfileArn
+
+            def instanceProfileName = instanceProfileArn.tokenize('/').last()
+
+            steps.echo "instanceProfileName:"
+            steps.echo instanceProfileName
+
+            def nodeRoleName = steps.sh(
+                    script: "aws iam get-instance-profile --instance-profile-name ${instanceProfileName} --query \"InstanceProfile.Roles[0].RoleName\" --output text",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "nodeRoleName:"
+            steps.echo nodeRoleName
+
+            def attachElbPolicyResult = steps.sh(
+                    script: "aws iam attach-role-policy --role-name ${nodeRoleName} --policy-arn arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess",
+                    returnStatus: true
+            )
+
+            steps.echo "attachElbPolicyResult: ${attachElbPolicyResult}"
+
             def helmEnv = "KUBECONFIG=${kubeConfig} HELM_CONFIG_HOME=${helmConfigHome} HELM_CACHE_HOME=${helmCacheHome} HELM_DATA_HOME=${helmDataHome}"
 
             def helmRepoAddResult = steps.sh(
-                    script: "${helmEnv} helm repo add eks https://aws.github.io/eks-charts",
+                    script: "${helmEnv} helm repo add eks https://aws.github.io/eks-charts || true",
                     returnStdout: true
             ).trim()
 
@@ -120,6 +157,14 @@ ${helmEnv} helm upgrade --install aws-load-balancer-controller eks/aws-load-bala
 
             steps.echo "installResult:"
             steps.echo installResult
+
+            def serviceAccountResult = steps.sh(
+                    script: "kubectl --kubeconfig=${kubeConfig} get serviceaccount aws-load-balancer-controller -n kube-system -o yaml",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "serviceAccountResult:"
+            steps.echo serviceAccountResult
 
             def rolloutRestartResult = steps.sh(
                     script: "kubectl --kubeconfig=${kubeConfig} rollout restart deployment/aws-load-balancer-controller -n kube-system",
