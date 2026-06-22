@@ -27,9 +27,13 @@ class EksDeployApplication implements Serializable {
 
         steps.echo "Running ${this.class.simpleName}"
 
+        def targetConfig = null
+
         // TODO remove this parsing bridge later and get values directly from orchestrator
         yml.release?.environments?."${params['LIFECYCLE']}"?.each { target ->
             if (target?.name == params['TARGET_NAME'] && target?.platform?.name == 'eks') {
+                targetConfig = target
+
                 params['AWS_REGION'] = target?.platform?.region
                 params['CLUSTER_NAME'] = target?.platform?.cluster_name
                 params['NAMESPACE'] = target?.platform?.namespace
@@ -38,17 +42,34 @@ class EksDeployApplication implements Serializable {
             }
         }
 
-        def applicationName = params['APPLICATION_NAME']
-
-        def applicationConfig = null
-        yml.release?.applications?.each { app ->
-            if (app?.name == applicationName) {
-                applicationConfig = app
-            }
+        if (targetConfig == null) {
+            steps.error "Could not find EKS target config for TARGET_NAME ${params['TARGET_NAME']} and LIFECYCLE ${params['LIFECYCLE']}"
         }
 
-        if (applicationConfig == null) {
-            steps.error "Could not find application config for APPLICATION_NAME ${applicationName}"
+        def applicationName = params['APPLICATION_NAME']
+
+        if (!applicationName?.trim()) {
+            steps.error "Missing APPLICATION_NAME"
+        }
+
+        def releaseApplicationConfig = yml.release?.applications?.values()?.flatten()?.find {
+            it?.name == applicationName
+        }
+
+        def targetApplicationConfig = targetConfig?.platform?.applications?.find {
+            it?.name == applicationName
+        }
+
+        if (releaseApplicationConfig == null) {
+            steps.error "Could not find release application config for APPLICATION_NAME ${applicationName}"
+        }
+
+        if (targetApplicationConfig == null) {
+            steps.error "Could not find target application config for APPLICATION_NAME ${applicationName}"
+        }
+
+        def dockerArtifact = releaseApplicationConfig?.artifacts?.find {
+            it?.type == 'docker-image'
         }
 
         def awsRegion = params['AWS_REGION']
@@ -57,13 +78,14 @@ class EksDeployApplication implements Serializable {
         def awsAccessKeyCredential = params['AWS_ACCESS_KEY_ID_CREDENTIAL'] ?: 'aws-access-key-id'
         def awsSecretKeyCredential = params['AWS_SECRET_ACCESS_KEY_CREDENTIAL'] ?: 'aws-secret-access-key'
 
-        def deploymentName = applicationConfig?.deployment_name ?: applicationConfig?.name
-        def serviceName = applicationConfig?.service?.name ?: deploymentName
-        def image = applicationConfig?.image
-        def replicas = applicationConfig?.replicas ?: 1
-        def containerPort = applicationConfig?.container?.port
-        def servicePort = applicationConfig?.service?.port ?: 80
-        def serviceTargetPort = applicationConfig?.service?.target_port ?: containerPort
+        def deploymentName = applicationName
+        def serviceName = applicationName
+        def image = dockerArtifact?.image
+        def replicas = targetApplicationConfig?.replicas ?: targetConfig?.platform?.defaults?.replicas ?: 1
+        def serviceType = targetApplicationConfig?.service?.type ?: targetConfig?.platform?.defaults?.service?.type ?: 'ClusterIP'
+        def containerPort = targetApplicationConfig?.container?.port
+        def servicePort = targetApplicationConfig?.service?.port
+        def serviceTargetPort = targetApplicationConfig?.service?.target_port ?: containerPort
 
         if (!awsRegion?.trim()) {
             steps.error "Missing AWS_REGION for EKS target ${params['TARGET_NAME']}"
@@ -77,30 +99,37 @@ class EksDeployApplication implements Serializable {
             steps.error "Missing NAMESPACE for EKS target ${params['TARGET_NAME']}"
         }
 
-        if (!applicationName?.trim()) {
-            steps.error "Missing APPLICATION_NAME"
-        }
-
-        if (!deploymentName?.trim()) {
-            steps.error "Missing deployment name for application ${applicationName}"
-        }
-
         if (!image?.trim()) {
-            steps.error "Missing image for application ${applicationName}"
+            steps.error "Missing docker-image artifact for application ${applicationName}"
         }
 
         if (!containerPort) {
             steps.error "Missing container.port for application ${applicationName}"
         }
 
+        if (!servicePort) {
+            steps.error "Missing service.port for application ${applicationName}"
+        }
+
         def kubeConfig = "${steps.env.WORKSPACE}/.kube/config"
 
         steps.sh(script: "mkdir -p ${steps.env.WORKSPACE}/.kube", returnStdout: true).trim()
 
-        steps.withCredentials([
+        def credentialBindings = [
                 steps.string(credentialsId: awsAccessKeyCredential, variable: 'AWS_ACCESS_KEY_ID'),
                 steps.string(credentialsId: awsSecretKeyCredential, variable: 'AWS_SECRET_ACCESS_KEY')
-        ]) {
+        ]
+
+        targetApplicationConfig?.secrets?.each { secretConfig ->
+            credentialBindings.add(
+                    steps.string(
+                            credentialsId: secretConfig?.source?.credential_id,
+                            variable: secretConfig?.env_name
+                    )
+            )
+        }
+
+        steps.withCredentials(credentialBindings) {
 
             def identity = steps.sh(
                     script: 'aws sts get-caller-identity',
@@ -125,6 +154,49 @@ class EksDeployApplication implements Serializable {
 
             steps.echo "namespaceResult:"
             steps.echo namespaceResult
+
+            targetApplicationConfig?.secrets?.each { secretConfig ->
+                def envName = secretConfig?.env_name
+                def secretName = "${applicationName}-${envName.toLowerCase().replace('_', '-')}".toString()
+
+                def secretApplyResult = steps.sh(
+                        script: "kubectl --kubeconfig=${kubeConfig} create secret generic ${secretName} -n ${namespace} --from-literal=${envName}=\$${envName} --dry-run=client -o yaml | kubectl --kubeconfig=${kubeConfig} apply -f -",
+                        returnStdout: true
+                ).trim()
+
+                steps.echo "secretApplyResult for ${secretName}:"
+                steps.echo secretApplyResult
+            }
+
+            def envBlock = ""
+
+            targetApplicationConfig?.secrets?.each { secretConfig ->
+                def envName = secretConfig?.env_name
+                def secretName = "${applicationName}-${envName.toLowerCase().replace('_', '-')}".toString()
+
+                envBlock += """
+            - name: ${envName}
+              valueFrom:
+                secretKeyRef:
+                  name: ${secretName}
+                  key: ${envName}
+"""
+            }
+
+            targetApplicationConfig?.env?.each { envConfig ->
+                envBlock += """
+            - name: ${envConfig?.name}
+              value: "${envConfig?.value}"
+"""
+            }
+
+            def envYaml = ""
+            if (envBlock?.trim()) {
+                envYaml = """
+          env:
+${envBlock}
+"""
+            }
 
             steps.writeFile(
                     file: "${deploymentName}-deployment.yml",
@@ -152,6 +224,7 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: ${containerPort}
+${envYaml}
 """.stripIndent()
             )
 
@@ -166,7 +239,7 @@ metadata:
   labels:
     app: ${deploymentName}
 spec:
-  type: ClusterIP
+  type: ${serviceType}
   selector:
     app: ${deploymentName}
   ports:
