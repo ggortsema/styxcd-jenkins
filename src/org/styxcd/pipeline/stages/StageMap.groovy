@@ -23,5 +23,11 @@ def getMap(steps, featureFlags) {
     map["EksValidateService"] = { new org.styxcd.pipeline.stages.stagesimpl.EksValidateService(steps, featureFlags) }
     map["EksValidateDeployment"] = { new org.styxcd.pipeline.stages.stagesimpl.EksValidateDeployment(steps, featureFlags) }
 
+
+    map["EKSWorkflowClusterBuild"] = { new org.styxcd.pipeline.stages.stagesimpl.EKSWorkflowClusterBuild(steps, featureFlags) }
+
+
+
+
     return map
 }

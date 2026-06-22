@@ -1,16 +1,9 @@
 package org.styxcd.pipeline.stages.stagesimpl
 
 class EksInstallLoadBalancerController implements Serializable {
-    /**
-     * a reference to the pipeline that allows you to run pipeline steps in your shared libary
-     */
+
     def steps
 
-    /**
-     * Constructor
-     *
-     * @param steps a reference to the pipeline that allows you to run pipeline steps in your shared libary
-     */
     public EksInstallLoadBalancerController(steps, featureFlags) {
         this.steps = steps
     }
@@ -22,19 +15,114 @@ class EksInstallLoadBalancerController implements Serializable {
         stageSpecificMap['TEST_VALUE'] = "IT WORKED"
 
         def yml = params['YML']
+
         steps.echo "here is yml"
         steps.echo "${yml}"
 
         steps.echo "----- STAGE PARAMS -----"
-
         params.each { key, value ->
             steps.echo "${key} = ${value}"
         }
-
         steps.echo "------------------------"
-
 
         steps.echo "Running ${this.class.simpleName}"
 
+        //TODO remove this parsing bridge later and get values directly from orchestrator
+        yml.release?.environments?."${params['LIFECYCLE']}"?.each { target ->
+            if (target?.name == params['TARGET_NAME']) {
+                params['AWS_REGION'] = target?.platform?.region
+                params['CLUSTER_NAME'] = target?.platform?.cluster_name
+                params['NAMESPACE'] = target?.platform?.namespace
+                params['CREDENTIALS_ID'] = target?.platform?.credentials?.id
+            }
+        }
+
+        def awsRegion = params['AWS_REGION']
+        def clusterName = params['CLUSTER_NAME']
+        def namespace = params['NAMESPACE'] ?: 'default'
+        def credentialsId = params['CREDENTIALS_ID']
+
+        def kubeConfig = "${steps.env.WORKSPACE}/.kube/config"
+
+        steps.sh(script: "mkdir -p ${steps.env.WORKSPACE}/.kube", returnStdout: true).trim()
+
+        steps.withCredentials([
+                steps.string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                steps.string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+        ]) {
+
+            def identity = steps.sh(
+                    script: 'aws sts get-caller-identity',
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "AWS Identity:"
+            steps.echo identity
+
+            def kubeconfigResult = steps.sh(
+                    script: "KUBECONFIG=${kubeConfig} aws eks update-kubeconfig --region ${awsRegion} --name ${clusterName}",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "kubeconfigResult:"
+            steps.echo kubeconfigResult
+
+            def nodesResult = steps.sh(
+                    script: "kubectl --kubeconfig=${kubeConfig} get nodes",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "nodesResult:"
+            steps.echo nodesResult
+
+            def helmRepoAddResult = steps.sh(
+                    script: "helm repo add eks https://aws.github.io/eks-charts",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "helmRepoAddResult:"
+            steps.echo helmRepoAddResult
+
+            def helmRepoUpdateResult = steps.sh(
+                    script: "helm repo update eks",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "helmRepoUpdateResult:"
+            steps.echo helmRepoUpdateResult
+
+            def installResult = steps.sh(
+                    script: """
+helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName=${clusterName} \
+  --set region=${awsRegion} \
+  --set vpcId=\$(aws eks describe-cluster --region ${awsRegion} --name ${clusterName} --query "cluster.resourcesVpcConfig.vpcId" --output text)
+""".stripIndent(),
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "installResult:"
+            steps.echo installResult
+
+            def rolloutStatus = steps.sh(
+                    script: "kubectl --kubeconfig=${kubeConfig} rollout status deployment/aws-load-balancer-controller -n kube-system --timeout=300s",
+                    returnStatus: true
+            )
+
+            steps.echo "Load balancer controller rollout status: ${rolloutStatus}"
+
+            if (rolloutStatus != 0) {
+                steps.error "AWS Load Balancer Controller rollout failed with status: ${rolloutStatus}"
+            }
+
+            def ingressClassResult = steps.sh(
+                    script: "kubectl --kubeconfig=${kubeConfig} get ingressclass alb",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "ingressClassResult:"
+            steps.echo ingressClassResult
+        }
     }
 }
