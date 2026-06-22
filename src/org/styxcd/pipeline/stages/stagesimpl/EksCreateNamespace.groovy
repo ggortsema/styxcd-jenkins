@@ -1,16 +1,9 @@
 package org.styxcd.pipeline.stages.stagesimpl
 
 class EksCreateNamespace implements Serializable {
-    /**
-     * a reference to the pipeline that allows you to run pipeline steps in your shared libary
-     */
+
     def steps
 
-    /**
-     * Constructor
-     *
-     * @param steps a reference to the pipeline that allows you to run pipeline steps in your shared libary
-     */
     public EksCreateNamespace(steps, featureFlags) {
         this.steps = steps
     }
@@ -22,19 +15,95 @@ class EksCreateNamespace implements Serializable {
         stageSpecificMap['TEST_VALUE'] = "IT WORKED"
 
         def yml = params['YML']
+
         steps.echo "here is yml"
         steps.echo "${yml}"
 
         steps.echo "----- STAGE PARAMS -----"
-
         params.each { key, value ->
             steps.echo "${key} = ${value}"
         }
-
         steps.echo "------------------------"
-
 
         steps.echo "Running ${this.class.simpleName}"
 
+        // TODO remove this parsing bridge later and get values directly from orchestrator
+        yml.release?.environments?."${params['LIFECYCLE']}"?.each { target ->
+            if (target?.name == params['TARGET_NAME'] && target?.platform?.name == 'eks') {
+                params['AWS_REGION'] = target?.platform?.region
+                params['CLUSTER_NAME'] = target?.platform?.cluster_name
+                params['NAMESPACE'] = target?.platform?.namespace
+                params['AWS_ACCESS_KEY_ID_CREDENTIAL'] = target?.platform?.credentials?.access_key_id
+                params['AWS_SECRET_ACCESS_KEY_CREDENTIAL'] = target?.platform?.credentials?.secret_access_key
+            }
+        }
+
+        def awsRegion = params['AWS_REGION']
+        def clusterName = params['CLUSTER_NAME']
+        def namespace = params['NAMESPACE'] ?: 'default'
+        def awsAccessKeyCredential = params['AWS_ACCESS_KEY_ID_CREDENTIAL'] ?: 'aws-access-key-id'
+        def awsSecretKeyCredential = params['AWS_SECRET_ACCESS_KEY_CREDENTIAL'] ?: 'aws-secret-access-key'
+
+        if (!awsRegion?.trim()) {
+            steps.error "Missing AWS_REGION for EKS target ${params['TARGET_NAME']}"
+        }
+
+        if (!clusterName?.trim()) {
+            steps.error "Missing CLUSTER_NAME for EKS target ${params['TARGET_NAME']}"
+        }
+
+        if (!namespace?.trim()) {
+            steps.error "Missing NAMESPACE for EKS target ${params['TARGET_NAME']}"
+        }
+
+        def kubeConfig = "${steps.env.WORKSPACE}/.kube/config"
+
+        steps.sh(script: "mkdir -p ${steps.env.WORKSPACE}/.kube", returnStdout: true).trim()
+
+        steps.withCredentials([
+                steps.string(credentialsId: awsAccessKeyCredential, variable: 'AWS_ACCESS_KEY_ID'),
+                steps.string(credentialsId: awsSecretKeyCredential, variable: 'AWS_SECRET_ACCESS_KEY')
+        ]) {
+
+            def identity = steps.sh(
+                    script: 'aws sts get-caller-identity',
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "AWS Identity:"
+            steps.echo identity
+
+            def kubeconfigResult = steps.sh(
+                    script: "KUBECONFIG=${kubeConfig} aws eks update-kubeconfig --region ${awsRegion} --name ${clusterName}",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "kubeconfigResult:"
+            steps.echo kubeconfigResult
+
+            def nodesResult = steps.sh(
+                    script: "kubectl --kubeconfig=${kubeConfig} get nodes",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "nodesResult:"
+            steps.echo nodesResult
+
+            def namespaceApplyResult = steps.sh(
+                    script: "kubectl --kubeconfig=${kubeConfig} create namespace ${namespace} --dry-run=client -o yaml | kubectl --kubeconfig=${kubeConfig} apply -f -",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "namespaceApplyResult:"
+            steps.echo namespaceApplyResult
+
+            def namespaceResult = steps.sh(
+                    script: "kubectl --kubeconfig=${kubeConfig} get namespace ${namespace}",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "namespaceResult:"
+            steps.echo namespaceResult
+        }
     }
 }
