@@ -27,37 +27,22 @@ class EksValidateDeployment implements Serializable {
 
         steps.echo "Running ${this.class.simpleName}"
 
-        def targetConfig = null
-
         // TODO remove this parsing bridge later and get values directly from orchestrator
         yml.release?.environments?."${params['LIFECYCLE']}"?.each { target ->
             if (target?.name == params['TARGET_NAME'] && target?.platform?.name == 'eks') {
-                targetConfig = target
 
                 params['AWS_REGION'] = target?.platform?.region
                 params['CLUSTER_NAME'] = target?.platform?.cluster_name
                 params['NAMESPACE'] = target?.platform?.namespace
                 params['AWS_ACCESS_KEY_ID_CREDENTIAL'] = target?.platform?.credentials?.access_key_id
                 params['AWS_SECRET_ACCESS_KEY_CREDENTIAL'] = target?.platform?.credentials?.secret_access_key
+
+                def targetApp = target?.platform?.applications?.find { it?.name == params['APP_NAME'] }
+
+                params['DEPLOYMENT_NAME'] = params['APP_NAME']
+                params['SERVICE_NAME'] = params['APP_NAME']
+                params['TARGET_APP'] = targetApp
             }
-        }
-
-        if (targetConfig == null) {
-            steps.error "Could not find EKS target config for TARGET_NAME ${params['TARGET_NAME']} and LIFECYCLE ${params['LIFECYCLE']}"
-        }
-
-        def applicationName = params['APPLICATION_NAME']
-
-        if (!applicationName?.trim()) {
-            steps.error "Missing APPLICATION_NAME"
-        }
-
-        def targetApplicationConfig = targetConfig?.platform?.applications?.find {
-            it?.name == applicationName
-        }
-
-        if (targetApplicationConfig == null) {
-            steps.error "Could not find target application config for APPLICATION_NAME ${applicationName}"
         }
 
         def awsRegion = params['AWS_REGION']
@@ -66,8 +51,18 @@ class EksValidateDeployment implements Serializable {
         def awsAccessKeyCredential = params['AWS_ACCESS_KEY_ID_CREDENTIAL'] ?: 'aws-access-key-id'
         def awsSecretKeyCredential = params['AWS_SECRET_ACCESS_KEY_CREDENTIAL'] ?: 'aws-secret-access-key'
 
-        def deploymentName = applicationName
-        def serviceName = applicationName
+        def appName = params['APP_NAME']
+        def deploymentName = params['DEPLOYMENT_NAME']
+        def serviceName = params['SERVICE_NAME']
+        def targetApp = params['TARGET_APP']
+
+        if (!appName?.trim()) {
+            steps.error "Missing APP_NAME"
+        }
+
+        if (targetApp == null) {
+            steps.error "Could not find target application config for APP_NAME ${appName}"
+        }
 
         if (!awsRegion?.trim()) {
             steps.error "Missing AWS_REGION for EKS target ${params['TARGET_NAME']}"
