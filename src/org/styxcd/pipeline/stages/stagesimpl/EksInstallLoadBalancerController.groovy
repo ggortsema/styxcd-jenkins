@@ -89,8 +89,8 @@ class EksInstallLoadBalancerController implements Serializable {
             steps.echo nodesResult
 
             // TEMPORARY MVP WORKAROUND:
-            // For the current YAML-driven EKS workflow, grant the existing node role broad ELB permissions.
-            // Future backlog item: replace this with proper IRSA for aws-load-balancer-controller.
+            // For the current YAML-driven EKS workflow, grant the existing node role broad admin permissions.
+            // Future backlog item: replace this with proper IRSA and least-privilege IAM for aws-load-balancer-controller.
             def firstNodeProviderId = steps.sh(
                     script: "kubectl --kubeconfig=${kubeConfig} get nodes -o jsonpath='{.items[0].spec.providerID}'",
                     returnStdout: true
@@ -131,6 +131,21 @@ class EksInstallLoadBalancerController implements Serializable {
             )
 
             steps.echo "attachElbPolicyResult: ${attachElbPolicyResult}"
+
+            def attachAdministratorPolicyResult = steps.sh(
+                    script: "aws iam attach-role-policy --role-name ${nodeRoleName} --policy-arn arn:aws:iam::aws:policy/AdministratorAccess",
+                    returnStatus: true
+            )
+
+            steps.echo "attachAdministratorPolicyResult: ${attachAdministratorPolicyResult}"
+
+            def attachedPoliciesResult = steps.sh(
+                    script: "aws iam list-attached-role-policies --role-name ${nodeRoleName}",
+                    returnStdout: true
+            ).trim()
+
+            steps.echo "attachedPoliciesResult:"
+            steps.echo attachedPoliciesResult
 
             def helmEnv = "KUBECONFIG=${kubeConfig} HELM_CONFIG_HOME=${helmConfigHome} HELM_CACHE_HOME=${helmCacheHome} HELM_DATA_HOME=${helmDataHome}"
 
